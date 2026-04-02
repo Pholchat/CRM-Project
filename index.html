@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClientPulse CRM — AI-Native</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; font-size: 15px; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(100,116,139,0.3); border-radius: 3px; }
+
+        .bg-shapes { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+        .bg-shapes .orb { position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.2; animation: floatOrb 20s ease-in-out infinite alternate; }
+        .bg-shapes .orb:nth-child(1) { width: 400px; height: 400px; background: #6366f1; top: -100px; left: -80px; }
+        .bg-shapes .orb:nth-child(2) { width: 350px; height: 350px; background: #ec4899; bottom: -80px; right: -60px; animation-delay: -7s; }
+        .bg-shapes .orb:nth-child(3) { width: 250px; height: 250px; background: #06b6d4; top: 40%; left: 40%; animation-delay: -12s; }
+        @keyframes floatOrb { 0%{transform:translate(0,0) scale(1)} 50%{transform:translate(30px,-20px) scale(1.03)} 100%{transform:translate(-20px,15px) scale(0.97)} }
+
+        .sidebar {
+            width: 240px; min-height: 100vh; background: rgba(15,23,42,0.8); backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255,255,255,0.06); display: flex; flex-direction: column;
+            position: fixed; left: 0; top: 0; bottom: 0; z-index: 200; transition: transform 0.3s;
+        }
+        .sidebar.collapsed { transform: translateX(-240px); }
+        .sidebar-logo { padding: 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+        .sidebar-logo .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg,#6366f1,#a855f7); border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(99,102,241,0.4); }
+        .sidebar-logo .logo-text { font-size: 17px; font-weight: 800; background: linear-gradient(135deg,#c7d2fe,#e9d5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .sidebar-nav { flex: 1; padding: 12px 10px; overflow-y: auto; }
+        .nav-section { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #475569; padding: 16px 12px 6px; }
+        .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; cursor: pointer; transition: all 0.15s; color: #94a3b8; font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+        .nav-item:hover { background: rgba(99,102,241,0.1); color: #e2e8f0; }
+        .nav-item.active { background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.2); }
+        .nav-item .nav-icon { width: 20px; text-align: center; font-size: 15px; flex-shrink: 0; }
+        .nav-item .nav-badge { margin-left: auto; background: rgba(99,102,241,0.2); color: #a5b4fc; font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+        .sidebar-footer { padding: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+        .sidebar-user { display: flex; align-items: center; gap: 10px; }
+        .sidebar-user .user-avatar { width: 34px; height: 34px; background: linear-gradient(135deg,#6366f1,#ec4899); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; }
+        .sidebar-user .user-info { font-size: 12px; }
+        .sidebar-user .user-info .user-name { font-weight: 600; color: #e2e8f0; }
+        .sidebar-user .user-info .user-role { color: #64748b; }
+
+        .main { margin-left: 240px; flex: 1; position: relative; z-index: 1; min-height: 100vh; transition: margin-left 0.3s; }
+        .main.expanded { margin-left: 0; }
+        .topbar { background: rgba(15,23,42,0.6); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.06); padding: 0 28px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+        .topbar-left { display: flex; align-items: center; gap: 16px; }
+        .topbar-toggle { cursor: pointer; font-size: 20px; color: #94a3b8; padding: 4px; }
+        .topbar-toggle:hover { color: #e2e8f0; }
+        .topbar-title { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+        .topbar-right { display: flex; align-items: center; gap: 16px; }
+        .topbar-search { padding: 8px 14px; background: rgba(15,23,42,0.6); border: 1px solid rgba(100,116,139,0.25); border-radius: 8px; font-size: 14px; color: #e2e8f0; outline: none; width: 220px; font-family: inherit; }
+        .topbar-search::placeholder { color: #475569; }
+        .topbar-search:focus { border-color: #6366f1; }
+        .topbar-time { font-size: 12px; color: #64748b; display: flex; align-items: center; gap: 6px; }
+        .topbar-time .dot { width: 7px; height: 7px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+        .topbar-icon { width: 34px; height: 34px; border-radius: 8px; background: rgba(100,116,139,0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; color: #94a3b8; transition: all 0.15s; position: relative; }
+        .topbar-icon:hover { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+        .topbar-icon .notif-dot { position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; background: #ef4444; border-radius: 50%; }
+
+        .content { padding: 24px 28px 60px; }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: rgba(30,41,59,0.6); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 20px; display: flex; align-items: center; gap: 14px; transition: transform 0.2s, border-color 0.2s; cursor: default; }
+        .stat-card:hover { transform: translateY(-2px); border-color: rgba(99,102,241,0.3); }
+        .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+        .stat-icon.purple { background: rgba(99,102,241,0.15); }
+        .stat-icon.pink { background: rgba(236,72,153,0.15); }
+        .stat-icon.cyan { background: rgba(6,182,212,0.15); }
+        .stat-icon.green { background: rgba(34,197,94,0.15); }
+        .stat-icon.amber { background: rgba(245,158,11,0.15); }
+        .stat-info .stat-number { font-size: 28px; font-weight: 800; color: #f1f5f9; }
+        .stat-info .stat-label { font-size: 13px; color: #64748b; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+
+        .card { background: rgba(30,41,59,0.5); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+        .card-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .card-title h3 { font-size: 18px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 8px; }
+        .card-title .title-icon { width: 28px; height: 28px; background: linear-gradient(135deg,#6366f1,#a855f7); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+        .btn { padding: 9px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: inherit; display: inline-flex; align-items: center; gap: 6px; }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: linear-gradient(135deg,#6366f1,#8b5cf6); color: #fff; box-shadow: 0 4px 15px rgba(99,102,241,0.3); }
+        .btn-primary:hover { box-shadow: 0 6px 25px rgba(99,102,241,0.45); transform: translateY(-1px); }
+        .btn-secondary { background: rgba(100,116,139,0.15); color: #94a3b8; border: 1px solid rgba(100,116,139,0.2); }
+        .btn-secondary:hover { background: rgba(100,116,139,0.25); color: #cbd5e1; }
+        .btn-danger { background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.2); }
+        .btn-danger:hover { background: rgba(239,68,68,0.25); }
+        .btn-success { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.2); }
+        .btn-success:hover { background: rgba(34,197,94,0.25); }
+        .btn-sm { padding: 6px 14px; font-size: 13px; border-radius: 6px; }
+        .btn-xs { padding: 4px 10px; font-size: 12px; border-radius: 5px; }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label { font-size: 14px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; display: block; }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 10px 14px; background: rgba(15,23,42,0.6); border: 1.5px solid rgba(100,116,139,0.3);
+            border-radius: 8px; font-size: 15px; color: #e2e8f0; outline: none; width: 100%;
+            transition: border-color 0.2s, box-shadow 0.2s; font-family: inherit;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+        .form-group input::placeholder, .form-group textarea::placeholder { color: #475569; }
+        .form-group textarea { resize: vertical; min-height: 60px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .form-row { display: flex; gap: 10px; }
+
+        .search-box { padding: 8px 14px; background: rgba(15,23,42,0.6); border: 1.5px solid rgba(100,116,139,0.25); border-radius: 8px; font-size: 15px; color: #e2e8f0; outline: none; font-family: inherit; transition: border-color 0.2s; }
+        .search-box::placeholder { color: #475569; }
+        .search-box:focus { border-color: #6366f1; }
+
+        table { width: 100%; border-collapse: collapse; }
+        thead th { padding: 10px 14px; text-align: left; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: #64748b; border-bottom: 1px solid rgba(100,116,139,0.15); white-space: nowrap; }
+        tbody tr { transition: background 0.15s; }
+        tbody tr:hover { background: rgba(99,102,241,0.06); }
+        tbody td { padding: 12px 14px; font-size: 14px; border-bottom: 1px solid rgba(100,116,139,0.08); white-space: nowrap; }
+        .table-wrap { overflow-x: auto; }
+
+        .avatar-placeholder { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; color: #fff; flex-shrink: 0; }
+        .customer-cell { display: flex; align-items: center; gap: 10px; }
+        .name-cell { font-weight: 600; color: #f1f5f9; }
+        .email-link { color: #38bdf8; text-decoration: none; transition: color 0.15s; }
+        .email-link:hover { color: #7dd3fc; }
+        .company-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; background: rgba(99,102,241,0.1); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.15); }
+        .score-badge { padding: 3px 10px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+        .score-hot { background: rgba(239,68,68,0.15); color: #f87171; }
+        .score-warm { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .score-cold { background: rgba(100,116,139,0.15); color: #94a3b8; }
+        .tag { display: inline-flex; padding: 3px 10px; border-radius: 5px; font-size: 12px; font-weight: 600; }
+
+        .kanban { display: grid; grid-template-columns: repeat(5,1fr); gap: 14px; min-height: 400px; }
+        .kanban-col { background: rgba(15,23,42,0.4); border-radius: 12px; padding: 12px; border: 1px solid rgba(255,255,255,0.04); }
+        .kanban-col-header { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 4px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+        .kanban-col-header .col-count { background: rgba(100,116,139,0.15); padding: 2px 8px; border-radius: 8px; font-size: 10px; color: #64748b; }
+        .kanban-card { background: rgba(30,41,59,0.7); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 12px; margin-bottom: 8px; cursor: grab; transition: transform 0.15s, box-shadow 0.15s; }
+        .kanban-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .kanban-card .kc-title { font-size: 14px; font-weight: 600; color: #f1f5f9; margin-bottom: 6px; }
+        .kanban-card .kc-company { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+        .kanban-card .kc-footer { display: flex; align-items: center; justify-content: space-between; }
+        .kanban-card .kc-value { font-size: 14px; font-weight: 700; color: #a5b4fc; }
+
+        .timeline { list-style: none; }
+        .timeline-item { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid rgba(100,116,139,0.08); }
+        .timeline-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+        .timeline-dot.email { background: #6366f1; }
+        .timeline-dot.call { background: #22c55e; }
+        .timeline-dot.note { background: #f59e0b; }
+        .timeline-dot.ai { background: #ec4899; }
+        .timeline-body { flex: 1; }
+        .timeline-body .tl-title { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+        .timeline-body .tl-desc { font-size: 14px; color: #94a3b8; margin-top: 2px; }
+        .timeline-body .tl-time { font-size: 13px; color: #475569; margin-top: 4px; }
+
+        .workflow-node { background: rgba(30,41,59,0.8); border: 1px solid rgba(99,102,241,0.2); border-radius: 10px; padding: 14px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.2s; }
+        .workflow-node:hover { border-color: rgba(99,102,241,0.4); transform: translateX(4px); }
+        .workflow-node .wf-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+        .workflow-node .wf-info { flex: 1; }
+        .workflow-node .wf-info .wf-title { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+        .workflow-node .wf-info .wf-desc { font-size: 13px; color: #64748b; }
+        .workflow-connector { width: 2px; height: 20px; background: rgba(99,102,241,0.3); margin: 0 0 0 26px; }
+
+        .chart-placeholder { background: rgba(15,23,42,0.4); border: 1px dashed rgba(100,116,139,0.2); border-radius: 10px; height: 180px; display: flex; align-items: center; justify-content: center; color: #475569; font-size: 13px; }
+        .bar-chart { display: flex; align-items: flex-end; gap: 8px; height: 160px; padding: 0 10px; }
+        .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+        .bar { width: 100%; border-radius: 4px 4px 0 0; transition: height 0.5s ease; min-width: 20px; }
+        .bar-label { font-size: 10px; color: #64748b; }
+        .bar-value { font-size: 10px; font-weight: 700; color: #94a3b8; }
+
+        .ai-panel { background: linear-gradient(135deg,rgba(99,102,241,0.1),rgba(168,85,247,0.05)); border: 1px solid rgba(99,102,241,0.2); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .ai-panel .ai-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 15px; font-weight: 700; color: #a5b4fc; }
+        .ai-panel .ai-header .ai-dot { width: 8px; height: 8px; background: #a855f7; border-radius: 50%; animation: pulse 1.5s infinite; }
+        .ai-panel .ai-body { font-size: 15px; color: #94a3b8; line-height: 1.6; }
+
+        .settings-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid rgba(100,116,139,0.08); }
+        .settings-row .sr-label { font-size: 15px; font-weight: 600; color: #e2e8f0; }
+        .settings-row .sr-desc { font-size: 14px; color: #64748b; margin-top: 2px; }
+        .toggle { width: 44px; height: 24px; background: rgba(100,116,139,0.3); border-radius: 12px; position: relative; cursor: pointer; transition: background 0.2s; }
+        .toggle.on { background: #6366f1; }
+        .toggle .toggle-dot { width: 18px; height: 18px; background: #fff; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: left 0.2s; }
+        .toggle.on .toggle-dot { left: 23px; }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: #475569; }
+        .empty-state .empty-icon { font-size: 48px; display: block; margin-bottom: 10px; opacity: 0.5; }
+
+        .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; font-family: 'Inter',sans-serif; box-shadow: 0 8px 30px rgba(0,0,0,0.3); opacity: 0; transform: translateY(20px); transition: opacity 0.3s,transform 0.3s; pointer-events: none; display: flex; align-items: center; gap: 8px; z-index: 999; }
+        .toast.success { background: linear-gradient(135deg,#059669,#10b981); color: #fff; }
+        .toast.danger { background: linear-gradient(135deg,#dc2626,#ef4444); color: #fff; }
+        .toast.show { opacity: 1; transform: translateY(0); }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 500; display: none; align-items: center; justify-content: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: rgba(30,41,59,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 28px; width: 500px; max-width: 90vw; max-height: 80vh; overflow-y: auto; }
+        .modal h3 { font-size: 16px; font-weight: 700; color: #f1f5f9; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+        .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+        @media (max-width: 1024px) { .kanban { grid-template-columns: repeat(3,1fr); } }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-240px); }
+            .sidebar.open { transform: translateX(0); }
+            .main { margin-left: 0; }
+            .stats-row { grid-template-columns: repeat(2,1fr); }
+            .grid-2, .form-grid { grid-template-columns: 1fr; }
+            .kanban { grid-template-columns: 1fr; }
+            .topbar-search { display: none; }
+        }
+        @media (max-width: 480px) { .stats-row { grid-template-columns: 1fr; } }
+
+        .quote-item { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid rgba(100,116,139,0.08); }
+        .quote-item .qi-product { font-weight: 600; color: #e2e8f0; font-size: 13px; }
+        .quote-item .qi-price { font-weight: 700; color: #a5b4fc; font-size: 13px; }
+        .dedup-match { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.2); border-radius: 10px; padding: 12px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+        .dedup-match .dm-info { font-size: 12px; color: #fbbf24; }
+        .transcription-box { background: rgba(15,23,42,0.5); border: 1px solid rgba(100,116,139,0.15); border-radius: 10px; padding: 14px; min-height: 120px; font-size: 13px; color: #94a3b8; line-height: 1.7; }
+        .mention-tag { display: inline-flex; padding: 1px 6px; border-radius: 4px; font-size: 12px; font-weight: 600; background: rgba(99,102,241,0.15); color: #a5b4fc; cursor: pointer; }
+        .inbox-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid rgba(100,116,139,0.08); cursor: pointer; transition: background 0.15s; }
+        .inbox-item:hover { background: rgba(99,102,241,0.06); }
+        .inbox-item.unread { border-left: 3px solid #6366f1; }
+        .inbox-item .ib-from { font-weight: 600; color: #e2e8f0; font-size: 13px; }
+        .inbox-item .ib-subject { font-size: 12px; color: #94a3b8; }
+        .inbox-item .ib-time { font-size: 11px; color: #475569; margin-left: auto; white-space: nowrap; }
+        .hierarchy-node { padding: 8px 12px; border-left: 2px solid rgba(99,102,241,0.3); margin-left: 0; margin-bottom: 4px; }
+        .hierarchy-node.child { margin-left: 28px; border-left-color: rgba(99,102,241,0.15); }
+        .hierarchy-node .hn-name { font-weight: 600; color: #e2e8f0; font-size: 13px; }
+        .hierarchy-node .hn-type { font-size: 11px; color: #64748b; }
+        .enrichment-field { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(100,116,139,0.06); }
+        .enrichment-field .ef-label { font-size: 12px; color: #64748b; }
+        .enrichment-field .ef-value { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+        .strength-bar { height: 6px; border-radius: 3px; background: rgba(100,116,139,0.15); overflow: hidden; margin-top: 6px; }
+        .strength-bar .sb-fill { height: 100%; border-radius: 3px; transition: width 0.5s; }
+        .merge-side { flex: 1; background: rgba(15,23,42,0.4); border: 1px solid rgba(100,116,139,0.1); border-radius: 10px; padding: 14px; }
+        .merge-side.selected { border-color: #6366f1; background: rgba(99,102,241,0.05); }
+        .merge-field { padding: 6px 0; border-bottom: 1px solid rgba(100,116,139,0.06); font-size: 12px; }
+        .merge-field .mf-label { color: #64748b; font-size: 11px; }
+        .merge-field .mf-value { color: #e2e8f0; font-weight: 500; }
+        .task-card { background: rgba(30,41,59,0.6); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
+        .task-card .tc-title { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+        .task-card .tc-meta { font-size: 11px; color: #64748b; margin-top: 4px; display: flex; gap: 12px; }
+        .task-card .tc-assignee { display: flex; align-items: center; gap: 6px; }
+        .doc-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid rgba(100,116,139,0.08); }
+        .doc-row .dr-icon { width: 36px; height: 36px; border-radius: 8px; background: rgba(99,102,241,0.1); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+        .doc-row .dr-info { flex: 1; }
+        .doc-row .dr-name { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+        .doc-row .dr-meta { font-size: 11px; color: #64748b; }
+        .esign-status { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+        .esign-signed { background: rgba(34,197,94,0.15); color: #4ade80; }
+        .esign-pending { background: rgba(245,158,11,0.15); color: #fbbf24; }
+        .esign-sent { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+        .news-item { padding: 12px 0; border-bottom: 1px solid rgba(100,116,139,0.08); }
+        .news-item .ni-title { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+        .news-item .ni-source { font-size: 11px; color: #64748b; margin-top: 2px; }
+        .news-item .ni-tag { display: inline-flex; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-top: 4px; }
+        .auth-step { display: flex; align-items: center; gap: 12px; padding: 14px; background: rgba(15,23,42,0.4); border: 1px solid rgba(100,116,139,0.1); border-radius: 10px; margin-bottom: 10px; }
+        .auth-step .as-num { width: 28px; height: 28px; border-radius: 50%; background: rgba(99,102,241,0.15); color: #a5b4fc; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+        .auth-step .as-info { flex: 1; }
+        .auth-step .as-title { font-size: 13px; font-weight: 600; color: #e2e8f0; }
+        .auth-step .as-desc { font-size: 11px; color: #64748b; }
+        .auth-step.done { border-color: rgba(34,197,94,0.2); }
+        .auth-step.done .as-num { background: rgba(34,197,94,0.15); color: #4ade80; }
+
+        #loginScreen { position: fixed; inset: 0; z-index: 9999; background: #0f172a; display: flex; align-items: center; justify-content: center; }
+        #loginScreen.hidden { display: none; }
+        .login-card { background: rgba(30,41,59,0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 40px; width: 400px; max-width: 90vw; }
+        .login-card .login-logo { text-align: center; margin-bottom: 28px; }
+        .login-card .login-logo .logo-icon { width: 52px; height: 52px; background: linear-gradient(135deg,#6366f1,#a855f7); border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 30px rgba(99,102,241,0.4); margin-bottom: 12px; }
+        .login-card .login-logo h2 { font-size: 22px; font-weight: 800; background: linear-gradient(135deg,#c7d2fe,#e9d5ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .login-card .login-logo p { font-size: 13px; color: #64748b; margin-top: 4px; }
+        .login-tabs { display: flex; gap: 0; margin-bottom: 24px; border-radius: 10px; overflow: hidden; border: 1px solid rgba(100,116,139,0.2); }
+        .login-tab { flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 600; cursor: pointer; background: rgba(15,23,42,0.4); color: #64748b; transition: all 0.2s; }
+        .login-tab.active { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+        .login-error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #f87171; margin-bottom: 14px; display: none; }
+        .login-error.show { display: block; }
+        .login-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.2); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #4ade80; margin-bottom: 14px; display: none; }
+        .login-success.show { display: block; }
+        .login-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .logout-btn { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 8px; cursor: pointer; color: #94a3b8; font-size: 12px; font-weight: 500; transition: all 0.15s; margin-top: 10px; background: none; border: 1px solid rgba(100,116,139,0.15); width: 100%; font-family: inherit; }
+        .logout-btn:hover { background: rgba(239,68,68,0.1); color: #f87171; border-color: rgba(239,68,68,0.2); }
+    </style>
+</head>
+<body>
+
+<div id="loginScreen">
+    <div class="bg-shapes" style="position:absolute;">
+        <div class="orb"></div><div class="orb"></div><div class="orb"></div>
+    </div>
+    <div class="login-card">
+        <div class="login-logo">
+            <div class="logo-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+            <h2>ClientPulse CRM</h2>
+            <p>AI-Native Customer Relationship Management</p>
+        </div>
+        <div class="login-tabs">
+            <div class="login-tab active" id="tabLogin" onclick="switchAuthTab('login')">Sign In</div>
+            <div class="login-tab" id="tabSignup" onclick="switchAuthTab('signup')">Sign Up</div>
+        </div>
+        <div class="login-error" id="authError"></div>
+        <div class="login-success" id="authSuccess"></div>
+        <div id="authFormLogin">
+            <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="you@company.com"></div>
+            <div class="form-group"><label>Password</label><input type="password" id="loginPassword" placeholder="Enter your password"></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" id="loginBtn" onclick="handleLogin()">Sign In</button>
+        </div>
+        <div id="authFormSignup" style="display:none;">
+            <div class="form-group"><label>Email</label><input type="email" id="signupEmail" placeholder="you@company.com"></div>
+            <div class="form-group"><label>Password</label><input type="password" id="signupPassword" placeholder="Min 6 characters"></div>
+            <div class="form-group"><label>Confirm Password</label><input type="password" id="signupConfirm" placeholder="Confirm your password"></div>
+            <button class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;" id="signupBtn" onclick="handleSignup()">Create Account</button>
+        </div>
+    </div>
+</div>
+
+<div class="bg-shapes">
+    <div class="orb"></div><div class="orb"></div><div class="orb"></div>
+</div>
+
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+        <div class="logo-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+        <span class="logo-text">ClientPulse</span>
+    </div>
+    <div class="sidebar-nav">
+        <div class="nav-section">Main</div>
+        <div class="nav-item active" data-page="dashboard"><span class="nav-icon">&#9632;</span> Dashboard</div>
+        <div class="nav-item" data-page="contacts"><span class="nav-icon">&#128100;</span> Contacts <span class="nav-badge" id="contactCount">0</span></div>
+        <div class="nav-item" data-page="pipeline"><span class="nav-icon">&#9654;</span> Pipeline</div>
+        <div class="nav-item" data-page="leads"><span class="nav-icon">&#9733;</span> Leads</div>
+
+        <div class="nav-section">Intelligence</div>
+        <div class="nav-item" data-page="ai-copilot"><span class="nav-icon">&#129302;</span> AI Copilot</div>
+        <div class="nav-item" data-page="analytics"><span class="nav-icon">&#128200;</span> Analytics</div>
+        <div class="nav-item" data-page="reports"><span class="nav-icon">&#128196;</span> Reports</div>
+
+        <div class="nav-section">Workspace</div>
+        <div class="nav-item" data-page="communication"><span class="nav-icon">&#9993;</span> Communication</div>
+        <div class="nav-item" data-page="workflows"><span class="nav-icon">&#9881;</span> Workflows</div>
+        <div class="nav-item" data-page="products"><span class="nav-icon">&#128230;</span> Products</div>
+
+        <div class="nav-section">System</div>
+        <div class="nav-item" data-page="admin"><span class="nav-icon">&#128274;</span> Admin &amp; Security</div>
+        <div class="nav-item" data-page="settings"><span class="nav-icon">&#9881;</span> Settings</div>
+    </div>
+    <div class="sidebar-footer">
+        <div class="sidebar-user">
+            <div class="user-avatar" id="sidebarAvatar">JD</div>
+            <div class="user-info">
+                <div class="user-name" id="sidebarUserName">John Doe</div>
+                <div class="user-role" id="sidebarUserEmail">Admin</div>
+            </div>
+        </div>
+        <button class="logout-btn" onclick="handleLogout()">&#9211; Sign Out</button>
+    </div>
+</nav>
+
+<div class="main" id="mainContent">
+    <div class="topbar">
+        <div class="topbar-left">
+            <div class="topbar-toggle" id="toggleSidebar">&#9776;</div>
+            <div class="topbar-title" id="pageTitle">Dashboard</div>
+        </div>
+        <div class="topbar-right">
+            <input type="text" class="topbar-search" placeholder="&#128269;  Search anything...">
+            <div class="topbar-time"><div class="dot"></div><span id="liveTime"></span></div>
+            <div class="topbar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg><div class="notif-dot"></div></div>
+            <div class="topbar-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- DASHBOARD PAGE -->
+        <div class="page active" id="page-dashboard">
+            <div class="stats-row">
+                <div class="stat-card"><div class="stat-icon purple"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="stat-info"><div class="stat-number" id="statTotal">0</div><div class="stat-label">Total Contacts</div></div></div>
+                <div class="stat-card"><div class="stat-icon pink"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#f9a8d4" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div><div class="stat-info"><div class="stat-number" id="statDeals">0</div><div class="stat-label">Active Deals</div></div></div>
+                <div class="stat-card"><div class="stat-icon cyan"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#67e8f9" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="stat-info"><div class="stat-number" id="statRevenue">$0</div><div class="stat-label">Pipeline Value</div></div></div>
+                <div class="stat-card"><div class="stat-icon green"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#86efac" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div><div class="stat-info"><div class="stat-number" id="statConversion">0%</div><div class="stat-label">Win Rate</div></div></div>
+            </div>
+
+            <div class="ai-panel">
+                <div class="ai-header"><div class="ai-dot"></div> GLM-5 AI Insight</div>
+                <div class="ai-body" id="aiInsight">Analyzing your pipeline data... Based on current trends, you have 3 deals likely to close this week. Consider following up with TechCorp — their engagement score increased 24% in the last 48 hours.</div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128200;</span> Revenue Forecast</h3></div>
+                    <div class="bar-chart" id="revenueChart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128197;</span> Recent Activity</h3></div>
+                    <ul class="timeline" id="dashTimeline"></ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTACTS PAGE -->
+        <div class="page" id="page-contacts">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                <input type="text" class="search-box" id="contactSearch" placeholder="&#128269;  Search contacts..." style="width:280px;">
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-primary" onclick="openModal('addContact')">+ Add Contact</button>
+                    <button class="btn btn-secondary" onclick="exportContacts()">Export CSV</button>
+                </div>
+            </div>
+            <div class="card" style="padding:0;">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>#</th><th>Customer</th><th>Email</th><th>Phone</th><th>Company</th><th>Score</th><th>Strength</th><th>Actions</th></tr></thead>
+                        <tbody id="contactTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#127970;</span> Account Hierarchy</h3></div>
+                    <div id="accountHierarchy"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128279;</span> Social Enrichment</h3><button class="btn btn-sm btn-primary" onclick="runEnrichment()">Enrich All</button></div>
+                    <div class="form-group"><label>Select Contact</label><select id="enrichContact"></select></div>
+                    <div id="enrichmentResults"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#128257;</span> Contact Merge Suggestions</h3></div>
+                <div id="mergeSuggestions"></div>
+            </div>
+        </div>
+
+        <!-- PIPELINE PAGE -->
+        <div class="page" id="page-pipeline">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                <div style="display:flex;gap:8px;">
+                    <button class="btn btn-primary" onclick="openModal('addDeal')">+ New Deal</button>
+                    <button class="btn btn-secondary">Forecast View</button>
+                </div>
+                <div style="font-size:12px;color:#64748b;">Total Pipeline: <strong style="color:#a5b4fc;" id="pipelineTotal">$0</strong></div>
+            </div>
+            <div class="kanban" id="kanbanBoard"></div>
+            <div class="card" style="margin-top:20px;">
+                <div class="card-title"><h3><span class="title-icon">&#128196;</span> Quote Generator</h3><button class="btn btn-sm btn-primary" onclick="generateQuote()">Generate PDF</button></div>
+                <div class="form-grid">
+                    <div class="form-group"><label>Select Deal</label><select id="quoteDeal"></select></div>
+                    <div class="form-group"><label>Select Products</label><select id="quoteProducts" multiple style="min-height:80px;"></select></div>
+                </div>
+                <div id="quotePreview" style="margin-top:12px;"></div>
+            </div>
+        </div>
+
+        <!-- LEADS PAGE -->
+        <div class="page" id="page-leads">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+                <input type="text" class="search-box" id="leadSearch" placeholder="&#128269;  Search leads..." style="width:280px;">
+                <button class="btn btn-primary" onclick="openModal('addLead')">+ Capture Lead</button>
+            </div>
+            <div class="ai-panel">
+                <div class="ai-header"><div class="ai-dot"></div> GLM-5 Lead Intelligence</div>
+                <div class="ai-body">Auto-scanning 47 new prospects from LinkedIn and email campaigns. 12 leads scored above 80 (Hot). 3 potential duplicates detected.</div>
+            </div>
+            <div class="card" style="padding:0;">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>#</th><th>Name</th><th>Source</th><th>Score</th><th>Status</th><th>Assigned</th><th>Actions</th></tr></thead>
+                        <tbody id="leadTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI COPILOT PAGE -->
+        <div class="page" id="page-ai-copilot">
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#129302;</span> AI Research Agent</h3><button class="btn btn-sm btn-primary" onclick="runAIReresearch()">Run Research</button></div>
+                    <div class="ai-panel">
+                        <div class="ai-header"><div class="ai-dot"></div> Pre-call Briefing</div>
+                        <div class="ai-body" id="aiBriefing">Enter a company name above to generate a briefing with GLM-5.</div>
+                    </div>
+                    <div class="form-group"><label>Target Company</label><input type="text" id="researchCompany" placeholder="e.g. TechCorp"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128257;</span> Churn Prediction</h3></div>
+                    <div id="churnList"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#127919;</span> Next Best Action</h3></div>
+                <div id="nbaList"></div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#127908;</span> Voice-to-CRM Entry</h3><button class="btn btn-sm btn-primary" id="voiceBtn" onclick="toggleVoice()">&#127908; Start Recording</button></div>
+                <div class="form-group"><textarea id="voiceOutput" placeholder="Voice transcription will appear here..." style="min-height:80px;"></textarea></div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#128240;</span> Competitor Intelligence</h3><button class="btn btn-sm btn-primary" onclick="refreshCompetitorIntel()">Refresh Feed</button></div>
+                <div class="form-group"><label>Monitor Company</label><input type="text" id="compIntelTarget" placeholder="e.g. TechCorp"></div>
+                <div id="competitorNewsFeed"></div>
+            </div>
+        </div>
+
+        <!-- ANALYTICS PAGE -->
+        <div class="page" id="page-analytics">
+            <div class="stats-row">
+                <div class="stat-card"><div class="stat-icon purple"><span>&#128640;</span></div><div class="stat-info"><div class="stat-number">14 days</div><div class="stat-label">Avg. Sales Cycle</div></div></div>
+                <div class="stat-card"><div class="stat-icon green"><span>&#128176;</span></div><div class="stat-info"><div class="stat-number">$28.4k</div><div class="stat-label">Avg. Deal Size</div></div></div>
+                <div class="stat-card"><div class="stat-icon amber"><span>&#128200;</span></div><div class="stat-info"><div class="stat-number">67%</div><div class="stat-label">Sales Velocity</div></div></div>
+                <div class="stat-card"><div class="stat-icon cyan"><span>&#127919;</span></div><div class="stat-info"><div class="stat-number">85%</div><div class="stat-label">AI Accuracy</div></div></div>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3>Monthly Revenue</h3></div>
+                    <div class="bar-chart" id="analyticsChart"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3>Leaderboard</h3></div>
+                    <div id="leaderboard"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3>Attribution by Source</h3></div>
+                <div class="grid-3" id="attributionGrid"></div>
+            </div>
+        </div>
+
+        <!-- REPORTS PAGE -->
+        <div class="page" id="page-reports">
+            <div class="ai-panel">
+                <div class="ai-header"><div class="ai-dot"></div> Natural Language Query</div>
+                <div class="form-group"><input type="text" id="nlQuery" placeholder='e.g. "Show me all deals over $10k closing this month"'></div>
+                <button class="btn btn-primary" onclick="runNLQuery()">Run Query</button>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3>Report Results</h3></div>
+                <div id="reportResults"><div class="empty-state"><span class="empty-icon">&#128196;</span><p>Enter a natural language query above to generate a report.</p></div></div>
+            </div>
+        </div>
+
+        <!-- COMMUNICATION PAGE -->
+        <div class="page" id="page-communication">
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#9993;</span> Email Co-pilot</h3></div>
+                    <div class="form-group"><label>To</label><input type="email" id="emailTo" placeholder="recipient@company.com"></div>
+                    <div class="form-group"><label>Subject</label><input type="text" id="emailSubject" placeholder="Follow-up on our meeting"></div>
+                    <div class="form-group"><label>Body</label><textarea id="emailBody" rows="6" placeholder="GLM-5 will help draft this..."></textarea></div>
+                    <div class="form-row">
+                        <button class="btn btn-primary" onclick="sendEmail()">Send</button>
+                        <button class="btn btn-secondary" onclick="aiDraftEmail()">AI Draft</button>
+                    </div>
+                </div>
+                <div>
+                    <div class="card">
+                        <div class="card-title"><h3><span class="title-icon">&#128222;</span> VoIP Dialer</h3></div>
+                        <div class="form-group"><input type="tel" id="dialNumber" placeholder="+1 234 567 890" style="font-size:18px;text-align:center;letter-spacing:2px;"></div>
+                        <div style="display:flex;gap:8px;justify-content:center;">
+                            <button class="btn btn-success" onclick="makeCall()">&#128222; Call</button>
+                            <button class="btn btn-danger" onclick="endCall()">&#128308; Hang Up</button>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-title"><h3>Sentiment</h3></div>
+                        <div id="sentimentDisplay" style="text-align:center;padding:16px;">
+                            <div style="font-size:32px;margin-bottom:6px;">&#128578;</div>
+                            <div style="font-size:14px;font-weight:700;color:#94a3b8;">Neutral</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#128240;</span> Unified Timeline</h3></div>
+                <ul class="timeline" id="commTimeline"></ul>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#127908;</span> Meeting Transcription</h3><button class="btn btn-sm btn-primary" id="transcribeBtn" onclick="toggleTranscription()">Start Meeting</button></div>
+                    <div class="form-group"><label>Meeting Title</label><input type="text" id="meetingTitle" placeholder="Weekly sync with TechCorp"></div>
+                    <div class="transcription-box" id="transcriptionOutput">Transcription will appear here when a meeting is in progress...</div>
+                    <div style="margin-top:10px;display:flex;gap:8px;">
+                        <button class="btn btn-sm btn-secondary" onclick="saveMeetingNotes()">Save Notes</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128172;</span> Smart Mentions</h3></div>
+                    <div class="form-group"><label>Add Note with @mention</label><textarea id="mentionInput" rows="3" placeholder="Type @ to mention a team member..."></textarea></div>
+                    <button class="btn btn-sm btn-primary" onclick="postMention()">Post Note</button>
+                    <div id="mentionFeed" style="margin-top:14px;"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#128229;</span> Shared Team Inbox</h3></div>
+                <div id="teamInbox"></div>
+            </div>
+        </div>
+
+        <!-- WORKFLOWS PAGE -->
+        <div class="page" id="page-workflows">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                <div></div>
+                <button class="btn btn-primary" onclick="openModal('addWorkflow')">+ Create Workflow</button>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3>Active Workflows</h3></div>
+                    <div id="workflowList"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3>Smart Reminders</h3></div>
+                    <div id="reminderList"></div>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128203;</span> Task Orchestration</h3><button class="btn btn-sm btn-secondary" onclick="autoAssignTasks()">Auto-Assign</button></div>
+                    <div id="taskOrchList"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128193;</span> Document Management</h3><button class="btn btn-sm btn-primary" onclick="openModal('uploadDoc')">Upload</button></div>
+                    <div id="docList"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#9999;</span> E-Signatures</h3></div>
+                <div id="esignList"></div>
+            </div>
+        </div>
+
+        <!-- PRODUCTS PAGE -->
+        <div class="page" id="page-products">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+                <div></div>
+                <button class="btn btn-primary" onclick="openModal('addProduct')">+ Add Product</button>
+            </div>
+            <div class="card" style="padding:0;">
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Price</th><th>Tier</th><th>Actions</th></tr></thead>
+                        <tbody id="productTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ADMIN PAGE -->
+        <div class="page" id="page-admin">
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128274;</span> Role-Based Access</h3></div>
+                    <div id="rbacList"></div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><h3><span class="title-icon">&#128203;</span> Audit Logs</h3></div>
+                    <div id="auditLogList"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#127760;</span> API Gateway</h3></div>
+                <div class="form-group"><label>API Key</label><input type="text" value="sk-cp-xxxx-xxxx-xxxx-xxxx" readonly style="font-family:monospace;"></div>
+                <div style="display:flex;gap:8px;"><button class="btn btn-sm btn-secondary" onclick="showToast('API key regenerated','success')">Regenerate Key</button><button class="btn btn-sm btn-secondary">View Docs</button></div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3><span class="title-icon">&#128274;</span> SAML / OAuth2 Authentication</h3><button class="btn btn-sm btn-primary" onclick="simulateAuthFlow()">Test Auth Flow</button></div>
+                <div id="authFlowSteps"></div>
+                <div class="form-grid" style="margin-top:14px;">
+                    <div class="form-group"><label>Identity Provider (IdP)</label><select id="authIdP"><option>Okta</option><option>Azure AD</option><option>Google Workspace</option><option>OneLogin</option></select></div>
+                    <div class="form-group"><label>Protocol</label><select id="authProtocol"><option>SAML 2.0</option><option>OAuth 2.0 + OIDC</option></select></div>
+                </div>
+                <div class="form-group"><label>Entity ID / Client ID</label><input type="text" value="clientpulse-crm-prod-001" readonly style="font-family:monospace;"></div>
+                <div class="form-group"><label>ACS URL / Redirect URI</label><input type="text" value="https://app.clientpulse.com/auth/callback" readonly style="font-family:monospace;"></div>
+            </div>
+        </div>
+
+        <!-- SETTINGS PAGE -->
+        <div class="page" id="page-settings">
+            <div class="card">
+                <div class="card-title"><h3>General Settings</h3></div>
+                <div class="settings-row"><div><div class="sr-label">Two-Factor Authentication</div><div class="sr-desc">Require 2FA for all users</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-dot"></div></div></div>
+                <div class="settings-row"><div><div class="sr-label">SSO / SAML</div><div class="sr-desc">Enable single sign-on integration</div></div><div class="toggle" onclick="this.classList.toggle('on')"><div class="toggle-dot"></div></div></div>
+                <div class="settings-row"><div><div class="sr-label">Multi-Currency</div><div class="sr-desc">Auto exchange rate conversion</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-dot"></div></div></div>
+                <div class="settings-row"><div><div class="sr-label">Automated Backups</div><div class="sr-desc">Daily backup at 02:00 UTC</div></div><div class="toggle on" onclick="this.classList.toggle('on')"><div class="toggle-dot"></div></div></div>
+                <div class="settings-row"><div><div class="sr-label">Data Portability</div><div class="sr-desc">One-click export (CSV/JSON)</div></div><button class="btn btn-sm btn-secondary" onclick="exportAllData()">Export All Data</button></div>
+            </div>
+            <div class="card">
+                <div class="card-title"><h3>Team Members</h3></div>
+                <div id="teamList"></div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modalContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+    var SUPABASE_URL = 'https://qfrklmjnhojizxgpnhsa.supabase.co';
+    var SUPABASE_ANON_KEY = 'sb_publishable_pQ4fb5z9kNcdo-LgHpvfJg_PN-0a5CZ';
+    var supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    function switchAuthTab(tab) {
+        var errEl = document.getElementById('authError');
+        var succEl = document.getElementById('authSuccess');
+        errEl.className = 'login-error';
+        succEl.className = 'login-success';
+        if (tab === 'login') {
+            document.getElementById('tabLogin').className = 'login-tab active';
+            document.getElementById('tabSignup').className = 'login-tab';
+            document.getElementById('authFormLogin').style.display = 'block';
+            document.getElementById('authFormSignup').style.display = 'none';
+        } else {
+            document.getElementById('tabLogin').className = 'login-tab';
+            document.getElementById('tabSignup').className = 'login-tab active';
+            document.getElementById('authFormLogin').style.display = 'none';
+            document.getElementById('authFormSignup').style.display = 'block';
+        }
+    }
+
+    function showAuthError(msg) {
+        var el = document.getElementById('authError');
+        el.textContent = msg;
+        el.className = 'login-error show';
+    }
+    function showAuthSuccess(msg) {
+        var el = document.getElementById('authSuccess');
+        el.textContent = msg;
+        el.className = 'login-success show';
+    }
+
+    function handleLogin() {
+        var email = document.getElementById('loginEmail').value.trim();
+        var password = document.getElementById('loginPassword').value;
+        if (!email || !password) { showAuthError('Please enter email and password.'); return; }
+        var btn = document.getElementById('loginBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="login-spinner"></span> Signing in...';
+        supabase.auth.signInWithPassword({ email: email, password: password })
+            .then(function(result) {
+                btn.disabled = false;
+                btn.textContent = 'Sign In';
+                if (result.error) {
+                    showAuthError(result.error.message);
+                } else {
+                    onAuthSuccess(result.data.user);
+                }
+            });
+    }
+
+    function handleSignup() {
+        var email = document.getElementById('signupEmail').value.trim();
+        var password = document.getElementById('signupPassword').value;
+        var confirm = document.getElementById('signupConfirm').value;
+        if (!email || !password) { showAuthError('Please fill in all fields.'); return; }
+        if (password.length < 6) { showAuthError('Password must be at least 6 characters.'); return; }
+        if (password !== confirm) { showAuthError('Passwords do not match.'); return; }
+        var btn = document.getElementById('signupBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="login-spinner"></span> Creating account...';
+        supabase.auth.signUp({ email: email, password: password })
+            .then(function(result) {
+                btn.disabled = false;
+                btn.textContent = 'Create Account';
+                if (result.error) {
+                    showAuthError(result.error.message);
+                } else if (result.data.user && !result.data.session) {
+                    showAuthSuccess('Account created! Check your email to confirm, then sign in.');
+                    switchAuthTab('login');
+                } else {
+                    onAuthSuccess(result.data.user);
+                }
+            });
+    }
+
+    function onAuthSuccess(user) {
+        document.getElementById('loginScreen').className = 'hidden';
+        var emailStr = user.email || '';
+        var parts = emailStr.split('@')[0].split(/[._-]/);
+        var displayName = parts.map(function(p) { return p.charAt(0).toUpperCase() + p.slice(1); }).join(' ');
+        var initials = parts.length >= 2 ? (parts[0][0] + parts[1][0]).toUpperCase() : emailStr.substring(0, 2).toUpperCase();
+        document.getElementById('sidebarUserName').textContent = displayName;
+        document.getElementById('sidebarUserEmail').textContent = emailStr;
+        document.getElementById('sidebarAvatar').textContent = initials;
+    }
+
+    function handleLogout() {
+        supabase.auth.signOut().then(function() {
+            document.getElementById('loginScreen').className = '';
+            document.getElementById('loginEmail').value = '';
+            document.getElementById('loginPassword').value = '';
+            document.getElementById('authError').className = 'login-error';
+            document.getElementById('authSuccess').className = 'login-success';
+        });
+    }
+
+    supabase.auth.getSession().then(function(result) {
+        if (result.data.session) {
+            onAuthSuccess(result.data.session.user);
+        }
+    });
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            var loginScreen = document.getElementById('loginScreen');
+            if (loginScreen.className !== 'hidden') {
+                if (document.getElementById('authFormLogin').style.display !== 'none') {
+                    handleLogin();
+                } else {
+                    handleSignup();
+                }
+            }
+        }
+    });
+
+    var avatarColors = ["linear-gradient(135deg,#6366f1,#8b5cf6)","linear-gradient(135deg,#ec4899,#f43f5e)","linear-gradient(135deg,#06b6d4,#0ea5e9)","linear-gradient(135deg,#10b981,#059669)","linear-gradient(135deg,#f59e0b,#d97706)","linear-gradient(135deg,#8b5cf6,#a855f7)","linear-gradient(135deg,#ef4444,#dc2626)","linear-gradient(135deg,#14b8a6,#0d9488)"];
+    function getInitials(n){var p=n.trim().split(/\s+/);if(p.length>=2)return(p[0][0]+p[p.length-1][0]).toUpperCase();return n.substring(0,2).toUpperCase();}
+    function getColor(n){var h=0;for(var i=0;i<n.length;i++){h=n.charCodeAt(i)+((h<<5)-h);}return avatarColors[Math.abs(h)%avatarColors.length];}
+    function esc(t){var d=document.createElement("div");d.appendChild(document.createTextNode(t));return d.innerHTML;}
+
+    var customers = [
+        {id:1,name:"Alice Johnson",email:"alice@techcorp.com",phone:"+1 555 0101",company:"TechCorp",score:92},
+        {id:2,name:"Bob Smith",email:"bob@innovate.io",phone:"+1 555 0102",company:"Innovate.io",score:78},
+        {id:3,name:"Carol Williams",email:"carol@globalnet.com",phone:"+1 555 0103",company:"GlobalNet",score:65},
+        {id:4,name:"David Brown",email:"david@bluewave.com",phone:"+1 555 0104",company:"BlueWave Labs",score:88},
+        {id:5,name:"Eva Martinez",email:"eva@sunrise.co",phone:"+1 555 0105",company:"Sunrise & Co",score:45}
+    ];
+
+    var deals = [
+        {id:1,title:"Enterprise License",company:"TechCorp",value:50000,stage:"Qualified",contact:"Alice Johnson"},
+        {id:2,title:"SaaS Onboarding",company:"Innovate.io",value:25000,stage:"Proposal",contact:"Bob Smith"},
+        {id:3,title:"Annual Contract",company:"GlobalNet",value:120000,stage:"Negotiation",contact:"Carol Williams"},
+        {id:4,title:"Pilot Program",company:"BlueWave Labs",value:15000,stage:"Discovery",contact:"David Brown"},
+        {id:5,title:"Custom Integration",company:"Sunrise & Co",value:35000,stage:"Won",contact:"Eva Martinez"},
+        {id:6,title:"Platform Upgrade",company:"TechCorp",value:80000,stage:"Proposal",contact:"Alice Johnson"},
+        {id:7,title:"Data Migration",company:"GlobalNet",value:22000,stage:"Discovery",contact:"Carol Williams"}
+    ];
+
+    var leads = [
+        {id:1,name:"Frank Lee",source:"LinkedIn",score:85,status:"Hot",assigned:"John Doe"},
+        {id:2,name:"Grace Kim",source:"Webform",score:62,status:"Warm",assigned:"Jane Smith"},
+        {id:3,name:"Henry Chen",source:"Email Campaign",score:38,status:"Cold",assigned:"John Doe"},
+        {id:4,name:"Ivy Park",source:"LinkedIn",score:91,status:"Hot",assigned:"Jane Smith"},
+        {id:5,name:"Jake Ross",source:"Referral",score:74,status:"Warm",assigned:"John Doe"},
+        {id:6,name:"Karen Liu",source:"Webform",score:29,status:"Cold",assigned:"Jane Smith"},
+        {id:7,name:"Leo Diaz",source:"Email Campaign",score:88,status:"Hot",assigned:"John Doe"},
+        {id:8,name:"Mia Wang",source:"LinkedIn",score:55,status:"Warm",assigned:"Jane Smith"}
+    ];
+
+    var products = [
+        {sku:"SKU-001",name:"CRM Starter",category:"Software",price:49,tier:"Basic"},
+        {sku:"SKU-002",name:"CRM Professional",category:"Software",price:149,tier:"Professional"},
+        {sku:"SKU-003",name:"CRM Enterprise",category:"Software",price:399,tier:"Enterprise"},
+        {sku:"SKU-004",name:"AI Add-on Pack",category:"Add-on",price:99,tier:"All"},
+        {sku:"SKU-005",name:"Data Migration Service",category:"Service",price:2500,tier:"Enterprise"}
+    ];
+
+    var activities = [
+        {type:"email",title:"Email sent to Alice Johnson",desc:"Follow-up on enterprise license proposal",time:"2 min ago"},
+        {type:"call",title:"Call with Bob Smith",desc:"Discussed SaaS onboarding timeline",time:"1 hour ago"},
+        {type:"ai",title:"GLM-5 analyzed deal risk",desc:"Custom Integration deal flagged — low engagement",time:"3 hours ago"},
+        {type:"note",title:"Note added to TechCorp",desc:"Q2 budget confirmed by procurement",time:"5 hours ago"},
+        {type:"email",title:"Email received from Carol Williams",desc:"Contract redline feedback",time:"Yesterday"},
+        {type:"call",title:"VoIP call completed",desc:"45min discovery call with BlueWave Labs",time:"Yesterday"}
+    ];
+
+    var workflows = [
+        {name:"Cold Lead Nudge",desc:"If lead cold for 3 days, send email and notify owner",active:true,icon:"&#128233;",color:"rgba(99,102,241,0.15)"},
+        {name:"Deal Escalation",desc:"If deal stagnant for 7 days, escalate to manager",active:true,icon:"&#9888;",color:"rgba(245,158,11,0.15)"},
+        {name:"Win Celebration",desc:"On deal won, notify team and log activity",active:true,icon:"&#127881;",color:"rgba(34,197,94,0.15)"},
+        {name:"Churn Alert",desc:"If engagement drops below threshold, create task",active:false,icon:"&#128680;",color:"rgba(239,68,68,0.15)"}
+    ];
+
+    var stages = ["Discovery","Qualified","Proposal","Negotiation","Won"];
+    var nextId = 100;
+
+    var toast = document.getElementById("toast");
+    function showToast(msg,type){toast.className="toast "+(type||"success");toast.innerHTML=(type==="danger"?"&#10060; ":"&#9989; ")+esc(msg);toast.classList.add("show");setTimeout(function(){toast.classList.remove("show");},2500);}
+
+    function updateClock(){var n=new Date();var o={weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'};document.getElementById("liveTime").textContent=n.toLocaleDateString('en-US',o);}
+    updateClock();setInterval(updateClock,30000);
+
+    function navigate(page){
+        var pages=document.querySelectorAll('.page');
+        for(var i=0;i<pages.length;i++)pages[i].classList.remove('active');
+        document.getElementById('page-'+page).classList.add('active');
+        var items=document.querySelectorAll('.nav-item');
+        for(var i=0;i<items.length;i++)items[i].classList.remove('active');
+        var target=document.querySelector('.nav-item[data-page="'+page+'"]');
+        if(target)target.classList.add('active');
+        var titles={dashboard:'Dashboard',contacts:'Contacts',pipeline:'Pipeline',leads:'Lead Management','ai-copilot':'AI Copilot',analytics:'Analytics',reports:'Reports',communication:'Communication',workflows:'Workflows',products:'Products',admin:'Admin & Security',settings:'Settings'};
+        document.getElementById('pageTitle').textContent=titles[page]||page;
+        if(window.innerWidth<768){document.getElementById('sidebar').classList.remove('open');}
+    }
+    document.querySelectorAll('.nav-item').forEach(function(item){item.addEventListener('click',function(){navigate(this.getAttribute('data-page'));});});
+    document.getElementById('toggleSidebar').addEventListener('click',function(){
+        if(window.innerWidth<768){document.getElementById('sidebar').classList.toggle('open');}
+        else{document.getElementById('sidebar').classList.toggle('collapsed');document.getElementById('mainContent').classList.toggle('expanded');}
+    });
+
+    function openModal(type){
+        var m=document.getElementById('modalContent');
+        var o=document.getElementById('modalOverlay');
+        if(type==='addContact'){
+            m.innerHTML='<h3>+ Add New Contact</h3><div class="form-grid"><div class="form-group"><label>Name</label><input type="text" id="mName" placeholder="John Doe" required></div><div class="form-group"><label>Email</label><input type="email" id="mEmail" placeholder="john@company.com"></div><div class="form-group"><label>Phone</label><input type="tel" id="mPhone" placeholder="+1 234 567 890"></div><div class="form-group"><label>Company</label><input type="text" id="mCompany" placeholder="Acme Inc."></div></div><div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="addContact()">Add Contact</button></div>';
+        }else if(type==='addDeal'){
+            m.innerHTML='<h3>+ New Deal</h3><div class="form-grid"><div class="form-group"><label>Deal Name</label><input type="text" id="mDealName" placeholder="Enterprise License"></div><div class="form-group"><label>Company</label><input type="text" id="mDealCompany" placeholder="TechCorp"></div><div class="form-group"><label>Value ($)</label><input type="number" id="mDealValue" placeholder="50000"></div><div class="form-group"><label>Stage</label><select id="mDealStage"><option>Discovery</option><option>Qualified</option><option>Proposal</option><option>Negotiation</option></select></div></div><div class="form-group"><label>Contact</label><input type="text" id="mDealContact" placeholder="Alice Johnson"></div><div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="addDeal()">Create Deal</button></div>';
+        }else if(type==='addLead'){
+            m.innerHTML='<h3>+ Capture Lead</h3><div class="form-grid"><div class="form-group"><label>Name</label><input type="text" id="mLeadName" placeholder="Frank Lee"></div><div class="form-group"><label>Source</label><select id="mLeadSource"><option>Webform</option><option>Email Campaign</option><option>LinkedIn</option><option>Referral</option></select></div><div class="form-group"><label>Assigned To</label><input type="text" id="mLeadAssign" placeholder="John Doe"></div></div><div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="addLead()">Add Lead</button></div>';
+        }else if(type==='uploadDoc'){
+            m.innerHTML='<h3>&#128193; Upload Document</h3><div class="form-grid"><div class="form-group"><label>Document Name</label><input type="text" id="mDocName" placeholder="Contract v2.0"></div><div class="form-group"><label>Type</label><select id="mDocType"><option value="contract">Contract</option><option value="proposal">Proposal</option><option value="deck">Deck</option><option value="sheet">Sheet</option></select></div><div class="form-group"><label>Version</label><input type="text" id="mDocVersion" placeholder="1.0"></div></div><div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="uploadDocument()">Upload</button></div>';
+        }else if(type==='addProduct'){
+            m.innerHTML='<h3>+ Add Product</h3><div class="form-grid"><div class="form-group"><label>Product Name</label><input type="text" id="mProdName" placeholder="CRM Module"></div><div class="form-group"><label>SKU</label><input type="text" id="mProdSku" placeholder="SKU-006"></div><div class="form-group"><label>Category</label><input type="text" id="mProdCat" placeholder="Software"></div><div class="form-group"><label>Price ($)</label><input type="number" id="mProdPrice" placeholder="99"></div><div class="form-group"><label>Tier</label><select id="mProdTier"><option>Basic</option><option>Professional</option><option>Enterprise</option><option>All</option></select></div></div><div class="modal-actions"><button class="btn btn-secondary" onclick="closeModal()">Cancel</button><button class="btn btn-primary" onclick="addProduct()">Add Product</button></div>';
+        }
+        o.classList.add('show');
+    }
+    function closeModal(){document.getElementById('modalOverlay').classList.remove('show');}
+    document.getElementById('modalOverlay').addEventListener('click',function(e){if(e.target===this)closeModal();});
+
+    function addContact(){
+        var n=document.getElementById('mName').value.trim();var e=document.getElementById('mEmail').value.trim();
+        var p=document.getElementById('mPhone').value.trim();var c=document.getElementById('mCompany').value.trim();
+        if(!n)return showToast('Name is required','danger');
+        var dupes=checkDuplicateContact(n,e);
+        if(dupes.length>0&&!window._dedupConfirmed){
+            var dupName=dupes[0].contact.name;
+            showToast('Possible duplicate: '+dupName+' ('+dupes[0].match+'). Click Add again to confirm.','danger');
+            window._dedupConfirmed=true;return;
+        }
+        window._dedupConfirmed=false;
+        nextId++;customers.push({id:nextId,name:n,email:e,phone:p,company:c,score:Math.floor(Math.random()*50)+40});
+        closeModal();renderContacts();updateDashboard();populateEnrichSelect();showToast(n+' added!');
+    }
+    function addDeal(){
+        var n=document.getElementById('mDealName').value.trim();var c=document.getElementById('mDealCompany').value.trim();
+        var v=parseInt(document.getElementById('mDealValue').value)||0;var s=document.getElementById('mDealStage').value;
+        var ct=document.getElementById('mDealContact').value.trim();
+        if(!n)return showToast('Deal name required','danger');
+        nextId++;deals.push({id:nextId,title:n,company:c,value:v,stage:s,contact:ct});
+        closeModal();renderPipeline();updateDashboard();showToast('Deal created!');
+    }
+    function addLead(){
+        var n=document.getElementById('mLeadName').value.trim();var s=document.getElementById('mLeadSource').value;
+        var a=document.getElementById('mLeadAssign').value.trim();
+        if(!n)return showToast('Lead name required','danger');
+        var dupes=checkDuplicateLead(n);
+        if(dupes.length>0&&!window._dedupLeadConfirmed){
+            var match=dupes[0].lead?dupes[0].lead.name:dupes[0].contact.name;
+            showToast('Possible duplicate: '+match+' ('+dupes[0].match+'). Click Add again to confirm.','danger');
+            window._dedupLeadConfirmed=true;return;
+        }
+        window._dedupLeadConfirmed=false;
+        nextId++;var sc=Math.floor(Math.random()*100);leads.push({id:nextId,name:n,source:s,score:sc,status:sc>75?"Hot":sc>45?"Warm":"Cold",assigned:a});
+        closeModal();renderLeads();showToast('Lead captured!');
+    }
+    function addProduct(){
+        var n=document.getElementById('mProdName').value.trim();var s=document.getElementById('mProdSku').value.trim();
+        var c=document.getElementById('mProdCat').value.trim();var p=parseInt(document.getElementById('mProdPrice').value)||0;
+        var t=document.getElementById('mProdTier').value;
+        if(!n)return showToast('Product name required','danger');
+        products.push({sku:s,name:n,category:c,price:p,tier:t});
+        closeModal();renderProducts();showToast('Product added!');
+    }
+
+    function uploadDocument(){
+        var n=document.getElementById('mDocName').value.trim();
+        var t=document.getElementById('mDocType').value;
+        var v=document.getElementById('mDocVersion').value.trim()||'1.0';
+        if(!n)return showToast('Document name required','danger');
+        var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var d=new Date();var dateStr=months[d.getMonth()]+' '+d.getDate()+', '+d.getFullYear();
+        documents.unshift({name:n,type:t,version:v,date:dateStr,author:'John Doe'});
+        closeModal();renderDocuments();showToast(n+' uploaded!');
+    }
+
+    function renderContacts(){renderContactsWithStrength();}
+    document.getElementById('contactSearch').addEventListener('input',renderContactsWithStrength);
+
+    function deleteContact(id){customers=customers.filter(function(c){return c.id!==id;});renderContacts();updateDashboard();showToast('Contact removed','danger');}
+
+    function renderPipeline(){
+        var board=document.getElementById('kanbanBoard');board.innerHTML='';
+        var total=0;
+        stages.forEach(function(stage){
+            var stageDeals=deals.filter(function(d){return d.stage===stage;});
+            var stageTotal=0;stageDeals.forEach(function(d){stageTotal+=d.value;});total+=stageTotal;
+            var col='<div class="kanban-col"><div class="kanban-col-header" style="color:'+(stage==='Won'?'#4ade80':stage==='Negotiation'?'#fbbf24':'#94a3b8')+';">'+stage+' <span class="col-count">'+stageDeals.length+'</span></div>';
+            stageDeals.forEach(function(d){
+                var ini=getInitials(d.contact||'?');var col2=getColor(d.contact||d.company);
+                col+='<div class="kanban-card" data-deal-id="'+d.id+'"><div class="kc-title">'+esc(d.title)+'</div><div class="kc-company">'+esc(d.company)+'</div><div class="kc-footer"><div class="kc-value">$'+d.value.toLocaleString()+'</div><div class="avatar-placeholder" style="width:24px;height:24px;font-size:9px;background:'+col2+';">'+ini+'</div></div></div>';
+            });
+            col+='</div>';board.innerHTML+=col;
+        });
+        document.getElementById('pipelineTotal').textContent='$'+total.toLocaleString();
+        var kanbanCards=document.querySelectorAll('.kanban-card');
+        kanbanCards.forEach(function(card){
+            card.addEventListener('click',function(){
+                var id=parseInt(this.getAttribute('data-deal-id'));
+                var deal=deals.filter(function(d){return d.id===id;})[0];
+                if(!deal)return;
+                var idx=stages.indexOf(deal.stage);
+                if(idx<stages.length-1){deal.stage=stages[idx+1];renderPipeline();updateDashboard();showToast(deal.title+' moved to '+deal.stage);}
+                else{showToast(deal.title+' is already Won!','success');}
+            });
+        });
+    }
+
+    function renderLeads(){
+        var q=(document.getElementById('leadSearch').value||'').trim().toLowerCase();
+        var data=leads.filter(function(l){if(!q)return true;return l.name.toLowerCase().indexOf(q)>-1||l.source.toLowerCase().indexOf(q)>-1;});
+        var tb=document.getElementById('leadTableBody');tb.innerHTML='';
+        data.forEach(function(l,i){
+            var sc=l.score>75?'score-hot':l.score>45?'score-warm':'score-cold';
+            var stCol=l.status==='Hot'?'rgba(239,68,68,0.15)':l.status==='Warm'?'rgba(245,158,11,0.15)':'rgba(100,116,139,0.15)';
+            var stTxt=l.status==='Hot'?'#f87171':l.status==='Warm'?'#fbbf24':'#94a3b8';
+            tb.innerHTML+='<tr><td style="color:#64748b;">'+(i+1)+'</td><td style="font-weight:600;color:#f1f5f9;">'+esc(l.name)+'</td><td><span class="company-badge">'+esc(l.source)+'</span></td><td><span class="score-badge '+sc+'">'+l.score+'</span></td><td><span class="tag" style="background:'+stCol+';color:'+stTxt+';">'+l.status+'</span></td><td style="color:#94a3b8;">'+esc(l.assigned)+'</td><td><button class="btn btn-xs btn-success" onclick="convertLead('+l.id+')">Convert</button> <button class="btn btn-xs btn-danger" onclick="deleteLead('+l.id+')">Delete</button></td></tr>';
+        });
+    }
+    document.getElementById('leadSearch').addEventListener('input',renderLeads);
+    function convertLead(id){var l=leads.filter(function(x){return x.id===id;})[0];if(!l)return;nextId++;customers.push({id:nextId,name:l.name,email:'',phone:'',company:'',score:l.score});leads=leads.filter(function(x){return x.id!==id;});renderLeads();renderContacts();updateDashboard();showToast(l.name+' converted to contact!');}
+    function deleteLead(id){leads=leads.filter(function(x){return x.id!==id;});renderLeads();showToast('Lead removed','danger');}
+
+    function renderProducts(){
+        var tb=document.getElementById('productTableBody');tb.innerHTML='';
+        products.forEach(function(p,i){
+            var tierCol=p.tier==='Enterprise'?'rgba(99,102,241,0.15)':p.tier==='Professional'?'rgba(6,182,212,0.15)':'rgba(100,116,139,0.15)';
+            tb.innerHTML+='<tr><td style="font-family:monospace;color:#64748b;">'+esc(p.sku)+'</td><td style="font-weight:600;color:#f1f5f9;">'+esc(p.name)+'</td><td><span class="company-badge">'+esc(p.category)+'</span></td><td style="color:#a5b4fc;font-weight:700;">$'+p.price.toLocaleString()+'</td><td><span class="tag" style="background:'+tierCol+';color:#94a3b8;">'+esc(p.tier)+'</span></td><td><button class="btn btn-xs btn-danger" onclick="deleteProduct('+i+')">Delete</button></td></tr>';
+        });
+    }
+    function deleteProduct(i){products.splice(i,1);renderProducts();showToast('Product removed','danger');}
+
+    function renderDashboard(){
+        var revData=[42000,58000,45000,72000,63000,89000,78000,95000,87000,110000,98000,125000];
+        var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var maxRev=0;revData.forEach(function(v){if(v>maxRev)maxRev=v;});
+        var chart=document.getElementById('revenueChart');chart.innerHTML='';
+        revData.forEach(function(v,i){
+            var h=Math.round((v/maxRev)*140);var col=i===revData.length-1?'#6366f1':'rgba(99,102,241,0.3)';
+            chart.innerHTML+='<div class="bar-col"><div class="bar-value">$'+Math.round(v/1000)+'k</div><div class="bar" style="height:'+h+'px;background:'+col+';"></div><div class="bar-label">'+months[i]+'</div></div>';
+        });
+        var tl=document.getElementById('dashTimeline');tl.innerHTML='';
+        activities.slice(0,4).forEach(function(a){
+            tl.innerHTML+='<li class="timeline-item"><div class="timeline-dot '+a.type+'"></div><div class="timeline-body"><div class="tl-title">'+esc(a.title)+'</div><div class="tl-desc">'+esc(a.desc)+'</div><div class="tl-time">'+esc(a.time)+'</div></div></li>';
+        });
+    }
+
+    function updateDashboard(){
+        document.getElementById('statTotal').textContent=customers.length;
+        document.getElementById('statDeals').textContent=deals.filter(function(d){return d.stage!=='Won';}).length;
+        var total=0;deals.forEach(function(d){total+=d.value;});
+        document.getElementById('statRevenue').textContent='$'+total.toLocaleString();
+        var won=deals.filter(function(d){return d.stage==='Won';}).length;
+        var total2=deals.length;var rate=total2>0?Math.round((won/total2)*100):0;
+        document.getElementById('statConversion').textContent=rate+'%';
+    }
+
+    function renderAnalytics(){
+        var aData=[32,45,38,52,48,67,61,73,69,82,77,91];
+        var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var mx=0;aData.forEach(function(v){if(v>mx)mx=v;});
+        var ch=document.getElementById('analyticsChart');ch.innerHTML='';
+        aData.forEach(function(v,i){
+            var h=Math.round((v/mx)*140);var col=i>=10?'#10b981':'rgba(34,197,94,0.3)';
+            ch.innerHTML+='<div class="bar-col"><div class="bar-value">'+v+'k</div><div class="bar" style="height:'+h+'px;background:'+col+';"></div><div class="bar-label">'+months[i]+'</div></div>';
+        });
+        var lb=document.getElementById('leaderboard');lb.innerHTML='';
+        var team=[{name:"John Doe",deals:12,revenue:245000},{name:"Jane Smith",deals:9,revenue:198000},{name:"Mike Lee",deals:7,revenue:156000}];
+        team.forEach(function(t,i){
+            var ini=getInitials(t.name);var col=getColor(t.name);
+            var medal=i===0?'&#129351;':i===1?'&#129352;':i===2?'&#129353;':'';
+            lb.innerHTML+='<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(100,116,139,0.08);"><span style="font-size:18px;">'+medal+'</span><div class="avatar-placeholder" style="background:'+col+';">'+ini+'</div><div style="flex:1;"><div style="font-weight:600;color:#e2e8f0;font-size:13px;">'+t.name+'</div><div style="font-size:11px;color:#64748b;">'+t.deals+' deals closed</div></div><div style="font-weight:700;color:#a5b4fc;">$'+(t.revenue/1000)+'k</div></div>';
+        });
+        var ag=document.getElementById('attributionGrid');ag.innerHTML='';
+        var sources=[{name:"LinkedIn",pct:34,color:"#6366f1"},{name:"Webform",pct:28,color:"#06b6d4"},{name:"Email",pct:22,color:"#f59e0b"},{name:"Referral",pct:16,color:"#10b981"}];
+        sources.forEach(function(s){
+            ag.innerHTML+='<div class="stat-card"><div class="stat-icon" style="background:'+s.color+'22;width:40px;height:40px;font-size:16px;">&#9679;</div><div class="stat-info"><div class="stat-number" style="font-size:20px;">'+s.pct+'%</div><div class="stat-label">'+s.name+'</div></div></div>';
+        });
+    }
+
+    function renderCommTimeline(){
+        var tl=document.getElementById('commTimeline');tl.innerHTML='';
+        activities.forEach(function(a){
+            tl.innerHTML+='<li class="timeline-item"><div class="timeline-dot '+a.type+'"></div><div class="timeline-body"><div class="tl-title">'+esc(a.title)+'</div><div class="tl-desc">'+esc(a.desc)+'</div><div class="tl-time">'+esc(a.time)+'</div></div></li>';
+        });
+    }
+
+    function renderWorkflows(){
+        var wl=document.getElementById('workflowList');wl.innerHTML='';
+        workflows.forEach(function(w,i){
+            wl.innerHTML+='<div class="workflow-node"><div class="wf-icon" style="background:'+w.color+';">'+w.icon+'</div><div class="wf-info"><div class="wf-title">'+esc(w.name)+'</div><div class="wf-desc">'+esc(w.desc)+'</div></div><div class="toggle'+(w.active?' on':'')+'" onclick="this.classList.toggle('+"'on'"+');workflows['+i+'].active=!workflows['+i+'].active;"><div class="toggle-dot"></div></div></div>';
+        });
+        var rl=document.getElementById('reminderList');rl.innerHTML='';
+        var reminders=[{title:"Follow up with Bob Smith",time:"Today, 3:00 PM",icon:"&#128276;"},{title:"TechCorp contract review",time:"Tomorrow, 10:00 AM",icon:"&#128197;"},{title:"Weekly pipeline review",time:"Friday, 2:00 PM",icon:"&#128202;"}];
+        reminders.forEach(function(r){
+            rl.innerHTML+='<div class="workflow-node"><div class="wf-icon" style="background:rgba(245,158,11,0.15);">'+r.icon+'</div><div class="wf-info"><div class="wf-title">'+esc(r.title)+'</div><div class="wf-desc">'+esc(r.time)+'</div></div></div>';
+        });
+    }
+
+    function renderAI(){
+        var cl=document.getElementById('churnList');cl.innerHTML='';
+        var churnData=[{name:"Sunrise & Co",risk:"High",pct:78},{name:"GlobalNet",risk:"Medium",pct:45},{name:"BlueWave Labs",risk:"Low",pct:18}];
+        churnData.forEach(function(c){
+            var col=c.risk==='High'?'#f87171':c.risk==='Medium'?'#fbbf24':'#4ade80';
+            cl.innerHTML+='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(100,116,139,0.08);"><div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">'+esc(c.name)+'</div><div style="font-size:11px;color:#64748b;">Churn probability</div></div><div style="text-align:right;"><div style="font-weight:700;color:'+col+';">'+c.pct+'%</div><div style="font-size:10px;color:#64748b;">'+c.risk+' Risk</div></div></div>';
+        });
+        var nb=document.getElementById('nbaList');nb.innerHTML='';
+        var nbaData=[{deal:"Enterprise License",action:"Schedule demo within 48h",confidence:92},{deal:"SaaS Onboarding",action:"Send pricing comparison doc",confidence:87},{deal:"Annual Contract",action:"Involve executive sponsor",confidence:79}];
+        nbaData.forEach(function(n){
+            nb.innerHTML+='<div class="workflow-node"><div class="wf-icon" style="background:rgba(99,102,241,0.15);">&#127919;</div><div class="wf-info"><div class="wf-title">'+esc(n.deal)+'</div><div class="wf-desc">'+esc(n.action)+'</div></div><div><span class="score-badge score-hot">'+n.confidence+'%</span></div></div>';
+        });
+    }
+
+    function renderAdmin(){
+        var rl=document.getElementById('rbacList');rl.innerHTML='';
+        var roles=[{role:"Admin",users:2,perms:"Full Access",color:"#6366f1"},{role:"Sales Manager",users:3,perms:"CRM + Reports + Pipeline",color:"#06b6d4"},{role:"Sales Rep",users:8,perms:"Contacts + Leads + Tasks",color:"#10b981"},{role:"Viewer",users:5,perms:"Read Only",color:"#94a3b8"}];
+        roles.forEach(function(r){
+            rl.innerHTML+='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(100,116,139,0.08);"><div style="display:flex;align-items:center;gap:10px;"><div style="width:10px;height:10px;border-radius:3px;background:'+r.color+';"></div><div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">'+r.role+'</div><div style="font-size:11px;color:#64748b;">'+r.perms+'</div></div></div><span class="tag" style="background:rgba(100,116,139,0.15);color:#94a3b8;">'+r.users+' users</span></div>';
+        });
+        var al=document.getElementById('auditLogList');al.innerHTML='';
+        var logs=[{action:"Contact created",user:"John Doe",time:"2 min ago"},{action:"Deal stage updated",user:"Jane Smith",time:"15 min ago"},{action:"Lead converted",user:"John Doe",time:"1 hour ago"},{action:"Workflow activated",user:"Admin",time:"3 hours ago"},{action:"User login",user:"Mike Lee",time:"Yesterday"}];
+        logs.forEach(function(l){
+            al.innerHTML+='<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(100,116,139,0.08);"><div><div style="font-size:12px;color:#e2e8f0;">'+esc(l.action)+'</div><div style="font-size:11px;color:#64748b;">by '+esc(l.user)+'</div></div><div style="font-size:11px;color:#475569;">'+esc(l.time)+'</div></div>';
+        });
+        var tl=document.getElementById('teamList');tl.innerHTML='';
+        var team=[{name:"John Doe",role:"Admin",email:"john@clientpulse.com"},{name:"Jane Smith",role:"Sales Manager",email:"jane@clientpulse.com"},{name:"Mike Lee",role:"Sales Rep",email:"mike@clientpulse.com"},{name:"Sara Chen",role:"Sales Rep",email:"sara@clientpulse.com"}];
+        team.forEach(function(t){
+            var ini=getInitials(t.name);var col=getColor(t.name);
+            tl.innerHTML+='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(100,116,139,0.08);"><div style="display:flex;align-items:center;gap:10px;"><div class="avatar-placeholder" style="background:'+col+';">'+ini+'</div><div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">'+esc(t.name)+'</div><div style="font-size:11px;color:#64748b;">'+esc(t.email)+'</div></div></div><span class="company-badge">'+esc(t.role)+'</span></div>';
+        });
+    }
+
+    function aiDraftEmail(){
+        var to=document.getElementById('emailTo').value.trim();
+        if(!to){showToast('Enter recipient first','danger');return;}
+        document.getElementById('emailBody').value='Hi '+to.split('@')[0]+',\n\nThank you for your interest in our CRM solution. I wanted to follow up on our recent conversation and share some additional resources that might be helpful.\n\nWould you be available for a brief call this week to discuss next steps?\n\nBest regards,\nJohn Doe';
+        showToast('AI draft generated!');
+    }
+    function sendEmail(){showToast('Email sent successfully!');activities.unshift({type:"email",title:"Email sent",desc:"Via GLM-5 co-pilot",time:"Just now"});renderCommTimeline();renderDashboard();}
+    function makeCall(){var n=document.getElementById('dialNumber').value.trim();if(!n){showToast('Enter a number','danger');return;}showToast('Calling '+n+'...');document.getElementById('sentimentDisplay').innerHTML='<div style="font-size:32px;margin-bottom:6px;">&#128522;</div><div style="font-size:14px;font-weight:700;color:#4ade80;">Positive</div><div style="font-size:11px;color:#64748b;margin-top:4px;">GLM-5 analyzing...</div>';}
+    function endCall(){showToast('Call ended');}
+
+    function runAIReresearch(){
+        var c=document.getElementById('researchCompany').value.trim();
+        if(!c){showToast('Enter company name','danger');return;}
+        document.getElementById('aiBriefing').innerHTML='<strong style="color:#a5b4fc;">'+esc(c)+'</strong><br><br>Founded: 2015 | HQ: San Francisco, CA<br>Employees: 250-500<br>Annual Revenue: ~$45M<br>Funding: Series B ($22M)<br><br><strong style="color:#94a3b8;">Key Decision Makers:</strong><br>- CEO: Sarah Mitchell<br>- CTO: James Park<br>- VP Sales: Lisa Chen<br><br><strong style="color:#94a3b8;">Recent News:</strong><br>- Expanded to European market (Feb 2026)<br>- Launched AI-powered analytics feature<br>- Partnered with major cloud provider';
+        showToast('Research complete!');
+    }
+    function toggleVoice(){var b=document.getElementById('voiceBtn');var o=document.getElementById('voiceOutput');if(b.textContent.indexOf('Start')>-1){b.innerHTML='&#9632; Stop Recording';o.value='Listening...';setTimeout(function(){o.value='Met with the client, they want to upgrade to Enterprise plan. Budget approved for Q2. Follow up next week with proposal.';showToast('Voice transcribed!');},2000);}else{b.innerHTML='&#127908; Start Recording';}}
+    function runNLQuery(){
+        var q=document.getElementById('nlQuery').value.trim();
+        if(!q){showToast('Enter a query','danger');return;}
+        var r=document.getElementById('reportResults');
+        r.innerHTML='<div style="margin-bottom:12px;padding:8px 12px;background:rgba(99,102,241,0.1);border-radius:8px;font-size:12px;color:#a5b4fc;">Query: "'+esc(q)+'"</div><table><thead><tr><th>Deal</th><th>Company</th><th>Value</th><th>Stage</th><th>Contact</th></tr></thead><tbody>';
+        deals.filter(function(d){return d.value>=10000;}).forEach(function(d){
+            r.innerHTML+='<tr><td style="font-weight:600;color:#f1f5f9;">'+esc(d.title)+'</td><td>'+esc(d.company)+'</td><td style="color:#a5b4fc;">$'+d.value.toLocaleString()+'</td><td><span class="company-badge">'+esc(d.stage)+'</span></td><td style="color:#94a3b8;">'+esc(d.contact)+'</td></tr>';
+        });
+        r.innerHTML+='</tbody></table>';
+        showToast('Report generated!');
+    }
+    function exportContacts(){
+        var csv='Name,Email,Phone,Company,Score\n';
+        customers.forEach(function(c){csv+='"'+c.name+'","'+c.email+'","'+c.phone+'","'+c.company+'",'+c.score+'\n';});
+        var blob=new Blob([csv],{type:'text/csv'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='contacts.csv';a.click();showToast('CSV exported!');
+    }
+    function exportAllData(){
+        var data=JSON.stringify({contacts:customers,deals:deals,leads:leads,products:products},null,2);
+        var blob=new Blob([data],{type:'application/json'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='crm-export.json';a.click();showToast('All data exported!');
+    }
+
+    var documents = [
+        {name:"Enterprise License Agreement v3.2",type:"contract",version:"3.2",date:"Mar 28, 2026",author:"John Doe"},
+        {name:"Q2 Sales Deck",type:"deck",version:"1.0",date:"Mar 25, 2026",author:"Jane Smith"},
+        {name:"TechCorp Proposal.pdf",type:"proposal",version:"2.1",date:"Mar 20, 2026",author:"John Doe"},
+        {name:"Product Pricing Sheet",type:"sheet",version:"4.0",date:"Mar 15, 2026",author:"Mike Lee"}
+    ];
+    var esignatures = [
+        {doc:"Enterprise License Agreement",signer:"Alice Johnson",status:"signed",date:"Mar 30, 2026"},
+        {doc:"SaaS Onboarding Contract",signer:"Bob Smith",status:"pending",date:"Mar 28, 2026"},
+        {doc:"Annual Contract Renewal",signer:"Carol Williams",status:"sent",date:"Mar 27, 2026"}
+    ];
+    var orchestratedTasks = [
+        {title:"Follow up with Hot lead Ivy Park",assignee:"Jane Smith",priority:"High",due:"Today",leadScore:91},
+        {title:"Send proposal to Leo Diaz",assignee:"John Doe",priority:"High",due:"Today",leadScore:88},
+        {title:"Schedule demo for Frank Lee",assignee:"John Doe",priority:"High",due:"Tomorrow",leadScore:85},
+        {title:"Nurture email to Jake Ross",assignee:"John Doe",priority:"Medium",due:"This week",leadScore:74},
+        {title:"Re-engage Grace Kim",assignee:"Jane Smith",priority:"Medium",due:"This week",leadScore:62}
+    ];
+    var teamInboxMessages = [
+        {from:"Alice Johnson",subject:"RE: Enterprise License renewal",preview:"Thanks for sending the updated pricing...",time:"10 min ago",unread:true},
+        {from:"support@globalnet.com",subject:"Integration API question",preview:"We are trying to connect your API with our...",time:"1 hour ago",unread:true},
+        {from:"Bob Smith",subject:"Meeting follow-up",preview:"Great call today. As discussed, we will...",time:"3 hours ago",unread:false},
+        {from:"noreply@linkedin.com",subject:"New lead from LinkedIn",preview:"Ivy Park viewed your company page and...",time:"Yesterday",unread:false},
+        {from:"Carol Williams",subject:"Contract redline v2",preview:"Please find attached the updated redline...",time:"Yesterday",unread:false}
+    ];
+    var mentionPosts = [
+        {author:"Jane Smith",text:"@John Doe — Ivy Park is ready for a demo. Can you take this one? Score is 91.",time:"30 min ago"},
+        {author:"John Doe",text:"@Jane Smith — TechCorp deal moved to Negotiation. Need manager approval on discount.",time:"2 hours ago"}
+    ];
+    var competitorNews = [
+        {title:"SalesForce announces AI-powered pipeline predictions",source:"TechCrunch — 2 hours ago",tag:"Feature Launch",tagColor:"rgba(99,102,241,0.15)",tagText:"#a5b4fc"},
+        {title:"HubSpot acquires conversation analytics startup",source:"Bloomberg — 5 hours ago",tag:"M&A",tagColor:"rgba(236,72,153,0.15)",tagText:"#f9a8d4"},
+        {title:"Zoho CRM cuts enterprise pricing by 20%",source:"Reuters — 1 day ago",tag:"Pricing",tagColor:"rgba(245,158,11,0.15)",tagText:"#fbbf24"},
+        {title:"Pipedrive raises $100M Series D for European expansion",source:"Crunchbase — 2 days ago",tag:"Funding",tagColor:"rgba(34,197,94,0.15)",tagText:"#4ade80"}
+    ];
+
+    function populateQuoteSelects(){
+        var ds=document.getElementById('quoteDeal');ds.innerHTML='';
+        deals.forEach(function(d){ds.innerHTML+='<option value="'+d.id+'">'+esc(d.title)+' — '+esc(d.company)+' ($'+d.value.toLocaleString()+')</option>';});
+        var ps=document.getElementById('quoteProducts');ps.innerHTML='';
+        products.forEach(function(p,i){ps.innerHTML+='<option value="'+i+'">'+esc(p.name)+' — $'+p.price.toLocaleString()+' ('+esc(p.tier)+')</option>';});
+    }
+    function generateQuote(){
+        var dealId=parseInt(document.getElementById('quoteDeal').value);
+        var deal=deals.filter(function(d){return d.id===dealId;})[0];
+        if(!deal){showToast('Select a deal','danger');return;}
+        var selOpts=document.getElementById('quoteProducts').selectedOptions;
+        var selProducts=[];
+        for(var i=0;i<selOpts.length;i++){selProducts.push(products[parseInt(selOpts[i].value)]);}
+        if(selProducts.length===0){selProducts=products.slice(0,2);}
+        var total=0;selProducts.forEach(function(p){total+=p.price;});
+        var prev=document.getElementById('quotePreview');
+        var h='<div style="background:rgba(15,23,42,0.5);border:1px solid rgba(100,116,139,0.15);border-radius:12px;padding:20px;">';
+        h+='<div style="text-align:center;margin-bottom:16px;"><div style="font-size:18px;font-weight:800;color:#f1f5f9;">ClientPulse CRM — Quote</div><div style="font-size:12px;color:#64748b;">Quote #QT-'+Date.now().toString().slice(-6)+'</div></div>';
+        h+='<div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:12px;"><div><div style="color:#64748b;">Client</div><div style="color:#e2e8f0;font-weight:600;">'+esc(deal.company)+'</div></div><div><div style="color:#64748b;">Contact</div><div style="color:#e2e8f0;font-weight:600;">'+esc(deal.contact)+'</div></div><div><div style="color:#64748b;">Deal</div><div style="color:#e2e8f0;font-weight:600;">'+esc(deal.title)+'</div></div></div>';
+        h+='<table style="margin-bottom:14px;"><thead><tr><th>Product</th><th>SKU</th><th>Tier</th><th>Price</th></tr></thead><tbody>';
+        selProducts.forEach(function(p){h+='<tr><td style="font-weight:600;color:#f1f5f9;">'+esc(p.name)+'</td><td style="font-family:monospace;color:#64748b;">'+esc(p.sku)+'</td><td>'+esc(p.tier)+'</td><td style="color:#a5b4fc;font-weight:700;">$'+p.price.toLocaleString()+'</td></tr>';});
+        h+='</tbody></table>';
+        h+='<div style="text-align:right;font-size:16px;font-weight:800;color:#a5b4fc;">Total: $'+total.toLocaleString()+'</div>';
+        h+='<div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;"><button class="btn btn-sm btn-primary" onclick="downloadQuotePDF()">Download PDF</button><button class="btn btn-sm btn-secondary" onclick="showToast(\'Quote sent to '+esc(deal.contact)+'\')">Send to Client</button></div>';
+        h+='</div>';
+        prev.innerHTML=h;
+        showToast('Quote generated!');
+    }
+    function downloadQuotePDF(){
+        var content='ClientPulse CRM — Quote\nGenerated: '+new Date().toLocaleDateString()+'\n\nThis is a simulated PDF download.\nIn production, this would generate a formatted PDF document.';
+        var blob=new Blob([content],{type:'application/pdf'});var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='quote-'+Date.now()+'.pdf';a.click();
+        showToast('Quote PDF downloaded!');
+    }
+
+    function checkDuplicateContact(name,email){
+        var dupes=[];
+        customers.forEach(function(c){
+            if(email&&c.email&&c.email.toLowerCase()===email.toLowerCase()){dupes.push({match:'email',contact:c});}
+            else if(name&&c.name.toLowerCase()===name.toLowerCase()){dupes.push({match:'name',contact:c});}
+        });
+        return dupes;
+    }
+    function checkDuplicateLead(name){
+        var dupes=[];
+        leads.forEach(function(l){if(name&&l.name.toLowerCase()===name.toLowerCase()){dupes.push({match:'name',lead:l});}});
+        customers.forEach(function(c){if(name&&c.name.toLowerCase()===name.toLowerCase()){dupes.push({match:'name (contact)',contact:c});}});
+        return dupes;
+    }
+
+    var transcriptionActive=false;
+    var transcriptionTimer=null;
+    var transcriptLines=["Alice: Thanks for joining the call today. Let's review the Q2 targets.","Bob: Sure. I think we need to focus on the Enterprise segment — it's grown 34% last quarter.","Alice: Agreed. The TechCorp deal alone could bring in $80k if we close by end of month.","Bob: I'll send the updated proposal by Thursday. Need sign-off from their CTO.","Alice: Great. Let's also discuss the onboarding timeline for the Innovate.io deal.","Bob: They want a 2-week pilot. I think we can make that work with the new SDK.","Alice: Perfect. Action items: Bob sends proposal, I'll schedule a demo for next Tuesday."];
+    function toggleTranscription(){
+        var btn=document.getElementById('transcribeBtn');
+        var out=document.getElementById('transcriptionOutput');
+        if(!transcriptionActive){
+            transcriptionActive=true;btn.innerHTML='&#9632; Stop Meeting';btn.className='btn btn-sm btn-danger';
+            out.innerHTML='<div style="color:#4ade80;font-size:11px;margin-bottom:8px;">&#9679; Live transcription active...</div>';
+            var lineIdx=0;
+            transcriptionTimer=setInterval(function(){
+                if(lineIdx<transcriptLines.length){out.innerHTML+='<div style="margin-bottom:6px;">'+esc(transcriptLines[lineIdx])+'</div>';lineIdx++;}
+                else{clearInterval(transcriptionTimer);out.innerHTML+='<div style="color:#64748b;font-size:11px;margin-top:8px;">[Meeting ended — transcript complete]</div>';}
+            },2000);
+        }else{
+            transcriptionActive=false;btn.innerHTML='Start Meeting';btn.className='btn btn-sm btn-primary';
+            clearInterval(transcriptionTimer);
+            out.innerHTML+='<div style="color:#64748b;font-size:11px;margin-top:8px;">[Meeting stopped by user]</div>';
+        }
+    }
+    function saveMeetingNotes(){
+        var title=document.getElementById('meetingTitle').value.trim()||'Untitled Meeting';
+        activities.unshift({type:"note",title:"Meeting notes: "+title,desc:"Transcription saved with "+transcriptLines.length+" lines",time:"Just now"});
+        renderCommTimeline();renderDashboard();showToast('Meeting notes saved!');
+    }
+
+    function postMention(){
+        var text=document.getElementById('mentionInput').value.trim();
+        if(!text){showToast('Enter a note','danger');return;}
+        mentionPosts.unshift({author:"John Doe",text:text,time:"Just now"});
+        document.getElementById('mentionInput').value='';
+        renderMentionFeed();
+        var mentions=text.match(/@\w+\s?\w*/g);
+        if(mentions){showToast('Notification sent to '+mentions.join(', '));}
+        else{showToast('Note posted!');}
+        activities.unshift({type:"note",title:"Note posted with mention",desc:text.substring(0,60)+'...',time:"Just now"});
+        renderCommTimeline();
+    }
+    function renderMentionFeed(){
+        var feed=document.getElementById('mentionFeed');feed.innerHTML='';
+        mentionPosts.forEach(function(p){
+            var formatted=p.text.replace(/@(\w+\s?\w*)/g,'<span class="mention-tag">@$1</span>');
+            feed.innerHTML+='<div style="padding:10px 0;border-bottom:1px solid rgba(100,116,139,0.08);"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;"><div class="avatar-placeholder" style="width:24px;height:24px;font-size:9px;background:'+getColor(p.author)+';">'+getInitials(p.author)+'</div><span style="font-weight:600;color:#e2e8f0;font-size:12px;">'+esc(p.author)+'</span><span style="font-size:11px;color:#475569;">'+esc(p.time)+'</span></div><div style="font-size:13px;color:#94a3b8;line-height:1.5;">'+formatted+'</div></div>';
+        });
+    }
+
+    function renderTeamInbox(){
+        var ib=document.getElementById('teamInbox');ib.innerHTML='';
+        teamInboxMessages.forEach(function(m,i){
+            ib.innerHTML+='<div class="inbox-item'+(m.unread?' unread':'')+'" onclick="claimInboxItem('+i+')"><div class="avatar-placeholder" style="width:32px;height:32px;font-size:10px;background:'+getColor(m.from)+';">'+getInitials(m.from)+'</div><div style="flex:1;min-width:0;"><div class="ib-from">'+esc(m.from)+'</div><div class="ib-subject">'+esc(m.subject)+'</div><div style="font-size:11px;color:#475569;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(m.preview)+'</div></div><div class="ib-time">'+esc(m.time)+'</div></div>';
+        });
+    }
+    function claimInboxItem(i){teamInboxMessages[i].unread=false;renderTeamInbox();showToast('Claimed: '+teamInboxMessages[i].subject);}
+
+    var accountHierarchyData=[
+        {name:"TechCorp Global",type:"Parent",children:[{name:"TechCorp US",type:"Subsidiary"},{name:"TechCorp EU",type:"Subsidiary"},{name:"TechCorp Asia Pacific",type:"Subsidiary"}]},
+        {name:"GlobalNet Holdings",type:"Parent",children:[{name:"GlobalNet Solutions",type:"Division"},{name:"GlobalNet Cloud Services",type:"Division"}]}
+    ];
+    function renderAccountHierarchy(){
+        var ah=document.getElementById('accountHierarchy');ah.innerHTML='';
+        accountHierarchyData.forEach(function(parent){
+            ah.innerHTML+='<div class="hierarchy-node"><div class="hn-name">&#127970; '+esc(parent.name)+'</div><div class="hn-type">'+esc(parent.type)+'</div></div>';
+            parent.children.forEach(function(child){
+                ah.innerHTML+='<div class="hierarchy-node child"><div class="hn-name">&#8627; '+esc(child.name)+'</div><div class="hn-type">'+esc(child.type)+'</div></div>';
+            });
+        });
+    }
+
+    function populateEnrichSelect(){
+        var sel=document.getElementById('enrichContact');sel.innerHTML='';
+        customers.forEach(function(c){sel.innerHTML+='<option value="'+c.id+'">'+esc(c.name)+' — '+esc(c.company)+'</option>';});
+    }
+    function runEnrichment(){
+        var sel=document.getElementById('enrichContact');
+        var cid=parseInt(sel.value);
+        var c=customers.filter(function(x){return x.id===cid;})[0];
+        if(!c){showToast('Select a contact','danger');return;}
+        var r=document.getElementById('enrichmentResults');
+        r.innerHTML='<div style="margin-bottom:10px;font-size:11px;color:#4ade80;">&#9679; Enrichment complete for '+esc(c.name)+'</div>';
+        var fields=[
+            {label:"LinkedIn",value:"linkedin.com/in/"+c.name.toLowerCase().replace(/\s/g,'-')},
+            {label:"Title",value:"VP of Operations"},
+            {label:"Location",value:"San Francisco, CA"},
+            {label:"Company Size",value:"250-500 employees"},
+            {label:"Industry",value:"SaaS / Technology"},
+            {label:"Twitter/X",value:"@"+c.name.split(' ')[0].toLowerCase()+"_biz"},
+            {label:"Last LinkedIn Post",value:"3 days ago — \"Excited about our Q2 roadmap\""},
+            {label:"Mutual Connections",value:"12"}
+        ];
+        fields.forEach(function(f){r.innerHTML+='<div class="enrichment-field"><span class="ef-label">'+esc(f.label)+'</span><span class="ef-value">'+esc(f.value)+'</span></div>';});
+        showToast(c.name+' profile enriched!');
+    }
+
+    function renderContactsWithStrength(){
+        var q=(document.getElementById('contactSearch').value||'').trim().toLowerCase();
+        var data=customers.filter(function(c){if(!q)return true;return c.name.toLowerCase().indexOf(q)>-1||c.email.toLowerCase().indexOf(q)>-1||c.company.toLowerCase().indexOf(q)>-1;});
+        var tb=document.getElementById('contactTableBody');tb.innerHTML='';
+        data.forEach(function(c,i){
+            var ini=getInitials(c.name);var col=getColor(c.name);
+            var sc=c.score>75?'score-hot':c.score>45?'score-warm':'score-cold';
+            var scLabel=c.score>75?'Hot':c.score>45?'Warm':'Cold';
+            var strength=Math.min(100,c.score+Math.floor(Math.random()*20));
+            var strColor=strength>75?'#4ade80':strength>45?'#fbbf24':'#94a3b8';
+            tb.innerHTML+='<tr><td style="color:#64748b;">'+(i+1)+'</td><td><div class="customer-cell"><div class="avatar-placeholder" style="background:'+col+';">'+ini+'</div><span class="name-cell">'+esc(c.name)+'</span></div></td><td><a class="email-link" href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a></td><td style="color:#94a3b8;">'+esc(c.phone)+'</td><td><span class="company-badge">'+esc(c.company)+'</span></td><td><span class="score-badge '+sc+'">'+scLabel+' ('+c.score+')</span></td><td><div style="width:60px;"><div style="font-size:10px;color:'+strColor+';font-weight:700;">'+strength+'%</div><div class="strength-bar"><div class="sb-fill" style="width:'+strength+'%;background:'+strColor+';"></div></div></div></td><td><button class="btn btn-xs btn-danger" onclick="deleteContact('+c.id+')">Delete</button></td></tr>';
+        });
+        document.getElementById('contactCount').textContent=customers.length;
+    }
+
+    function renderMergeSuggestions(){
+        var ms=document.getElementById('mergeSuggestions');ms.innerHTML='';
+        var suggestions=[
+            {a:{name:"Alice Johnson",email:"alice@techcorp.com",company:"TechCorp"},b:{name:"A. Johnson",email:"ajohnson@techcorp.com",company:"TechCorp Inc"},confidence:87},
+            {a:{name:"David Brown",email:"david@bluewave.com",company:"BlueWave Labs"},b:{name:"Dave Brown",email:"d.brown@bluewave.io",company:"BlueWave"},confidence:72}
+        ];
+        suggestions.forEach(function(s,i){
+            ms.innerHTML+='<div class="dedup-match"><div style="flex:1;display:flex;gap:14px;"><div class="merge-side"><div class="merge-field"><div class="mf-label">Name</div><div class="mf-value">'+esc(s.a.name)+'</div></div><div class="merge-field"><div class="mf-label">Email</div><div class="mf-value">'+esc(s.a.email)+'</div></div><div class="merge-field"><div class="mf-label">Company</div><div class="mf-value">'+esc(s.a.company)+'</div></div></div><div style="display:flex;align-items:center;font-size:20px;color:#475569;">&#8596;</div><div class="merge-side"><div class="merge-field"><div class="mf-label">Name</div><div class="mf-value">'+esc(s.b.name)+'</div></div><div class="merge-field"><div class="mf-label">Email</div><div class="mf-value">'+esc(s.b.email)+'</div></div><div class="merge-field"><div class="mf-label">Company</div><div class="mf-value">'+esc(s.b.company)+'</div></div></div></div><div style="text-align:center;"><div class="score-badge '+(s.confidence>80?'score-hot':'score-warm')+'">'+s.confidence+'% match</div><br><button class="btn btn-xs btn-primary" onclick="mergeContacts('+i+')" style="margin-top:6px;">Merge</button><br><button class="btn btn-xs btn-secondary" onclick="this.parentNode.parentNode.remove()" style="margin-top:4px;">Dismiss</button></div></div>';
+        });
+        if(suggestions.length===0){ms.innerHTML='<div class="empty-state"><span class="empty-icon">&#9989;</span><p>No duplicate contacts detected.</p></div>';}
+    }
+    function mergeContacts(i){showToast('Contacts merged successfully!');document.querySelectorAll('.dedup-match')[i].remove();}
+
+    function renderTaskOrchestration(){
+        var tl=document.getElementById('taskOrchList');tl.innerHTML='';
+        orchestratedTasks.forEach(function(t){
+            var prColor=t.priority==='High'?'#f87171':t.priority==='Medium'?'#fbbf24':'#94a3b8';
+            tl.innerHTML+='<div class="task-card"><div class="tc-title">'+esc(t.title)+'</div><div class="tc-meta"><span style="color:'+prColor+';font-weight:600;">'+esc(t.priority)+'</span><span class="tc-assignee"><div class="avatar-placeholder" style="width:18px;height:18px;font-size:8px;background:'+getColor(t.assignee)+';">'+getInitials(t.assignee)+'</div>'+esc(t.assignee)+'</span><span>Due: '+esc(t.due)+'</span><span>Score: '+t.leadScore+'</span></div></div>';
+        });
+    }
+    function autoAssignTasks(){
+        orchestratedTasks.forEach(function(t){
+            t.assignee=t.leadScore>80?'John Doe':'Jane Smith';
+        });
+        renderTaskOrchestration();
+        showToast('Tasks auto-assigned based on lead scores!');
+    }
+
+    function renderDocuments(){
+        var dl=document.getElementById('docList');dl.innerHTML='';
+        var icons={contract:'&#128196;',deck:'&#128202;',proposal:'&#128203;',sheet:'&#128200;'};
+        documents.forEach(function(d,i){
+            dl.innerHTML+='<div class="doc-row"><div class="dr-icon">'+(icons[d.type]||'&#128196;')+'</div><div class="dr-info"><div class="dr-name">'+esc(d.name)+'</div><div class="dr-meta">v'+esc(d.version)+' &middot; '+esc(d.date)+' &middot; by '+esc(d.author)+'</div></div><div style="display:flex;gap:6px;"><button class="btn btn-xs btn-secondary" onclick="showToast(\'Downloading '+esc(d.name)+'\')">Download</button><button class="btn btn-xs btn-danger" onclick="deleteDoc('+i+')">Delete</button></div></div>';
+        });
+    }
+    function deleteDoc(i){documents.splice(i,1);renderDocuments();showToast('Document deleted','danger');}
+
+    function renderESignatures(){
+        var el=document.getElementById('esignList');el.innerHTML='';
+        esignatures.forEach(function(s){
+            var cls=s.status==='signed'?'esign-signed':s.status==='pending'?'esign-pending':'esign-sent';
+            el.innerHTML+='<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid rgba(100,116,139,0.08);"><div><div style="font-weight:600;color:#e2e8f0;font-size:13px;">'+esc(s.doc)+'</div><div style="font-size:11px;color:#64748b;">Signer: '+esc(s.signer)+' &middot; '+esc(s.date)+'</div></div><span class="esign-status '+cls+'">'+esc(s.status.charAt(0).toUpperCase()+s.status.slice(1))+'</span></div>';
+        });
+    }
+
+    function refreshCompetitorIntel(){
+        renderCompetitorFeed();
+        showToast('Competitor intelligence refreshed!');
+    }
+    function renderCompetitorFeed(){
+        var cf=document.getElementById('competitorNewsFeed');cf.innerHTML='';
+        competitorNews.forEach(function(n){
+            cf.innerHTML+='<div class="news-item"><div class="ni-title">'+esc(n.title)+'</div><div class="ni-source">'+esc(n.source)+'</div><div class="ni-tag" style="background:'+n.tagColor+';color:'+n.tagText+';">'+esc(n.tag)+'</div></div>';
+        });
+    }
+
+    function simulateAuthFlow(){
+        var idp=document.getElementById('authIdP').value;
+        var protocol=document.getElementById('authProtocol').value;
+        var steps=document.getElementById('authFlowSteps');
+        steps.innerHTML='';
+        var flowSteps=protocol.indexOf('SAML')>-1?[
+            {title:"Service Provider Redirect",desc:"User clicks login → redirect to "+idp+" IdP"},
+            {title:"SAML Request Sent",desc:"AuthnRequest posted to "+idp+" SSO endpoint"},
+            {title:"User Authentication",desc:"User authenticates with "+idp+" credentials + MFA"},
+            {title:"SAML Assertion Received",desc:"Signed SAML response with user attributes returned"},
+            {title:"Session Created",desc:"ClientPulse validates assertion, creates session token"}
+        ]:[
+            {title:"Authorization Redirect",desc:"User redirected to "+idp+" /authorize endpoint"},
+            {title:"User Consent",desc:"User grants access to ClientPulse CRM scopes"},
+            {title:"Authorization Code",desc:"Code returned to redirect URI via callback"},
+            {title:"Token Exchange",desc:"Code exchanged for access_token + id_token at /token"},
+            {title:"Session Created",desc:"OIDC claims verified, user session established"}
+        ];
+        var stepIdx=0;
+        var stepTimer=setInterval(function(){
+            if(stepIdx<flowSteps.length){
+                var s=flowSteps[stepIdx];
+                steps.innerHTML+='<div class="auth-step done"><div class="as-num">&#10003;</div><div class="as-info"><div class="as-title">Step '+(stepIdx+1)+': '+esc(s.title)+'</div><div class="as-desc">'+esc(s.desc)+'</div></div></div>';
+                stepIdx++;
+            }else{
+                clearInterval(stepTimer);
+                showToast('Auth flow simulation complete — '+protocol+' via '+idp);
+            }
+        },600);
+    }
+
+    function renderNewFeatures(){
+        populateQuoteSelects();
+        renderMentionFeed();
+        renderTeamInbox();
+        renderAccountHierarchy();
+        populateEnrichSelect();
+        renderMergeSuggestions();
+        renderTaskOrchestration();
+        renderDocuments();
+        renderESignatures();
+        renderCompetitorFeed();
+    }
+
+    renderContactsWithStrength();renderPipeline();renderLeads();renderProducts();renderDashboard();updateDashboard();renderAnalytics();renderCommTimeline();renderWorkflows();renderAI();renderAdmin();renderNewFeatures();
+</script>
+</body>
+</html>
